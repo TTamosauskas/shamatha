@@ -23,10 +23,6 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
-function formatDate(ts) {
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle:'short', timeStyle:'short', timeZone:CURITIBA_TZ }).format(new Date(ts));
-}
-
 function formatCuritiba(ts) {
   return new Intl.DateTimeFormat('pt-BR', {
     timeZone: CURITIBA_TZ,
@@ -76,6 +72,7 @@ function renderUsers() {
   $('userCount').textContent = `${users.length} ${users.length === 1 ? 'usuário' : 'usuários'}`;
   $('usersBody').innerHTML = users.length ? users.map(user => {
     const isEditor = user.role === 'editor';
+    const isSelf = editorData.currentUser?.id === user.id;
     const roleControl = user.isOwner
       ? '<span class="badge owner">Editor principal</span>'
       : `<select class="user-role role-select" data-email="${esc(user.email)}" aria-label="Função de ${esc(user.email)}">
@@ -84,18 +81,22 @@ function renderUsers() {
         </select>`;
 
     const stateControl = isEditor || user.isOwner
-      ? `<span class="badge good">Aprovado</span>`
+      ? '<span class="badge good">Aprovado</span>'
       : `<select class="user-status role-select status-select" data-email="${esc(user.email)}" aria-label="Estado de ${esc(user.email)}">
           <option value="pending" ${user.accessStatus === 'pending' ? 'selected' : ''}>Pendente</option>
           <option value="approved" ${user.accessStatus === 'approved' ? 'selected' : ''}>Aprovado</option>
           <option value="suspended" ${user.accessStatus === 'suspended' ? 'selected' : ''}>Suspenso</option>
         </select>`;
 
+    const deleteControl = user.isOwner
+      ? '<span class="muted">Protegido</span>'
+      : `<button class="btn danger small delete-user" type="button" data-email="${esc(user.email)}" ${isSelf ? 'disabled title="Você não pode deletar a própria conta ativa"' : ''}>Deletar</button>`;
+
     return `<tr>
-      <td>${esc(user.email)}</td>
-      <td>${esc(formatDate(user.createdAt))}</td>
+      <td class="user-email-cell">${esc(user.email)}</td>
       <td>${roleControl}</td>
       <td>${stateControl}</td>
+      <td class="user-actions-cell">${deleteControl}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="4" class="muted">Ainda não há usuários cadastrados.</td></tr>';
 
@@ -129,28 +130,42 @@ function renderUsers() {
       setStatus('accessStatus', error.message, 'bad');
     }
   }));
+
+  document.querySelectorAll('.delete-user').forEach(button => button.addEventListener('click', async () => {
+    const email = button.dataset.email;
+    if (!window.confirm(`Deletar ${email}? O usuário e seu histórico de progresso serão removidos permanentemente.`)) return;
+    button.disabled = true;
+    try {
+      const data = await api('/api/editor/user', { method:'DELETE', body:JSON.stringify({ email }) });
+      editorData.users = editorData.users.filter(user => user.id !== data.id);
+      renderUsers();
+      setStatus('accessStatus', `${data.email} foi deletado.`);
+    } catch (error) {
+      renderUsers();
+      setStatus('accessStatus', error.message, 'bad');
+    }
+  }));
 }
 
 function renderLiveClasses() {
-  const rows = (editorData.liveClasses || []).filter(item => item.status !== 'ended');
+  const rows = (editorData.liveClasses || []).filter(item => item.status === 'scheduled' && new Date(item.startsAt).getTime() > Date.now());
   if (!rows.length) {
     $('liveClassList').innerHTML = '<p class="muted live-empty">Nenhuma aula futura agendada.</p>';
     return;
   }
   $('liveClassList').innerHTML = rows.map(item => `
-    <div class="live-class-row ${item.status === 'cancelled' ? 'is-cancelled' : ''}">
-      <div><strong>${esc(formatCuritiba(item.startsAt))}</strong><small>${item.status === 'cancelled' ? 'Cancelada' : 'Agendada · horário de Curitiba'}</small></div>
-      ${item.status === 'scheduled' ? `<button class="btn danger small cancel-live" type="button" data-id="${esc(item.id)}">Cancelar</button>` : '<span class="badge bad">Cancelada</span>'}
+    <div class="live-class-row">
+      <div><strong>${esc(formatCuritiba(item.startsAt))}</strong><small>Agendada · horário de Curitiba</small></div>
+      <button class="btn danger small cancel-live" type="button" data-id="${esc(item.id)}">Cancelar</button>
     </div>`).join('');
 
   document.querySelectorAll('.cancel-live').forEach(btn => btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
       const data = await api('/api/editor/live-class', { method:'DELETE', body:JSON.stringify({ id:btn.dataset.id }) });
-      const idx = editorData.liveClasses.findIndex(item => item.id === data.liveClass.id);
-      if (idx >= 0) editorData.liveClasses[idx] = data.liveClass;
+      editorData.liveClasses = editorData.liveClasses.filter(item => item.id !== data.id);
       renderLiveClasses();
-      setStatus('liveClassStatus', 'Aula cancelada. Usuários com notificações ativas receberam o aviso.');
+      setStatus('liveClassStatus', 'Aula cancelada e removida. Usuários com notificações ativas receberam o aviso.');
     } catch (error) {
       btn.disabled = false;
       setStatus('liveClassStatus', error.message, 'bad');
@@ -274,26 +289,17 @@ function renderStages(openStage = null) {
   });
 }
 
-$('inviteRole').addEventListener('change', () => {
-  const editor = $('inviteRole').value === 'editor';
-  $('inviteStatus').value = editor ? 'approved' : $('inviteStatus').value;
-  $('inviteStatus').disabled = editor;
-});
-
 $('inviteForm').addEventListener('submit', async event => {
   event.preventDefault();
   const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
-    const data = await api('/api/editor/invite', {
-      method:'POST',
-      body:JSON.stringify({ email:$('inviteEmail').value, status:$('inviteStatus').value, role:$('inviteRole').value })
-    });
+    const data = await api('/api/editor/invite', { method:'POST', body:JSON.stringify({ email:$('inviteEmail').value }) });
     updateUser(data.user);
     renderUsers();
     setStatus('accessStatus', data.invited
-      ? `Convite enviado para ${data.user.email}. Estado: ${statusLabel(data.user.accessStatus)}.`
-      : `${data.user.email} já existia e foi atualizado para ${statusLabel(data.user.accessStatus)}.`);
+      ? `Convite enviado para ${data.user.email}. Novo usuário criado como Aluno e Pendente.`
+      : `${data.user.email} já está cadastrado; função e estado foram mantidos.`);
     $('inviteEmail').value = '';
   } catch (error) {
     setStatus('accessStatus', error.message, 'bad');
@@ -306,9 +312,7 @@ $('liveClassForm').addEventListener('submit', async event => {
   button.disabled = true;
   try {
     const startsAt = curitibaLocalToIso($('liveClassAt').value);
-    const data = await api('/api/editor/live-class', {
-      method:'POST', body:JSON.stringify({ url:$('liveClassUrl').value, startsAt })
-    });
+    const data = await api('/api/editor/live-class', { method:'POST', body:JSON.stringify({ url:$('liveClassUrl').value, startsAt }) });
     editorData.liveClasses.push(data.liveClass);
     editorData.liveClasses.sort((a,b) => new Date(a.startsAt) - new Date(b.startsAt));
     renderLiveClasses();
