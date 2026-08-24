@@ -1,5 +1,12 @@
-const CACHE = 'shamatha-shell-v1';
-const SHELL = ['./', './index.html', './app.html', './assets/app.css', './assets/app-cleanup.css'];
+const CACHE = 'shamatha-shell-v2';
+const SHELL = [
+  './',
+  './index.html',
+  './app.html?v=20260824-1023',
+  './assets/app.css?v=20260824-1023',
+  './assets/app-cleanup.css?v=20260824-1023',
+  './assets/practice-ux.js?v=20260824-1023'
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).catch(() => null));
@@ -7,7 +14,11 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('push', event => {
