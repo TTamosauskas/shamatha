@@ -1,0 +1,33 @@
+.home-status-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-height:30px;
+}
+.home-status-row .home-status{
+  margin:0!important;
+}
+.home-status-row .reminder-settings-button{
+  width:30px;
+  min-width:30px;
+  height:30px;
+  min-height:30px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  font-size:16px;
+  line-height:1;
+}
+@media(max-width:640px){
+  .home-status-row{gap:5px;}
+  .home-status-row .reminder-settings-button{
+    width:28px;
+    min-width:28px;
+    height:28px;
+    min-height:28px;
+    padding:0;
+    font-size:15px;
+  }
+}
