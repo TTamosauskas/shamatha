@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#eaf7fd" />
   <title>Centro Pineal — Meditação</title>
   <link rel="stylesheet" href="./assets/app.css" />
+  <link rel="stylesheet" href="./assets/app-cleanup.css" />
 </head>
 <body>
   <main class="app-shell" id="appShell">
@@ -18,20 +19,22 @@
     </svg>
 
     <header class="home-header">
-      <div>
+      <div class="brand-block">
         <p class="brand-kicker">APRENDENDO À MEDITAR</p>
         <h1 class="brand-title">Centro Pineal</h1>
+        <div class="brand-meta">
+          <div class="home-status" id="homeStatus">Etapa 1 de 9</div>
+          <div class="account-actions">
+            <span class="account-pill" id="accountEmail"></span>
+            <a class="account-link hidden" id="editorLink" href="./editor.html">Editor</a>
+            <button class="logout-mini" id="logout" type="button">Sair</button>
+          </div>
+        </div>
       </div>
       <div class="home-actions">
         <a class="live-class-badge hidden" id="liveClassBadge" href="#" target="_blank" rel="noopener" aria-label="Abrir aula ao vivo">
           <span class="live-eye" aria-hidden="true">👁</span><span>Ao Vivo</span>
         </a>
-        <div class="home-status" id="homeStatus">Etapa 1 de 9</div>
-        <div class="account-actions">
-          <span class="account-pill" id="accountEmail"></span>
-          <a class="account-link hidden" id="editorLink" href="./editor.html">Editor</a>
-          <button class="logout-mini" id="logout" type="button">Sair</button>
-        </div>
       </div>
     </header>
 
@@ -65,10 +68,10 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
 
-  <div class="modal-backdrop hidden" id="unitModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-backdrop hidden" id="unitModal" role="dialog" aria-modal="true" aria-label="Prática de meditação">
     <section class="unit-window">
-      <header class="unit-toolbar">
-        <div class="unit-toolbar-title"><small id="toolbarStage"></small><strong id="modalTitle"></strong></div>
+      <header class="unit-toolbar unit-toolbar-minimal">
+        <div class="unit-toolbar-title" style="display:none"><small id="toolbarStage"></small><strong id="modalTitle"></strong></div>
         <button class="icon-btn" id="closeUnit" aria-label="Fechar unidade">×</button>
       </header>
       <div class="unit-scroll" id="unitScroll"></div>
@@ -82,5 +85,6 @@
 <script src="./assets/supabase-backend.js"></script>
 <script src="./assets/shamatha-extensions.js"></script>
 <script src="./assets/app.js"></script>
+<script src="./assets/app-cleanup.js"></script>
 </body>
 </html>
