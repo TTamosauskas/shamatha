@@ -29,7 +29,7 @@
       const emailCell = row.querySelector('.user-email-cell');
       if (!emailCell) {
         const only = row.querySelector('td[colspan]');
-        if (only) only.setAttribute('colspan', '5');
+        if (only && only.getAttribute('colspan') !== '5') only.setAttribute('colspan', '5');
         return;
       }
 
@@ -40,10 +40,11 @@
         activityCell.className = 'user-last-session-cell';
         emailCell.insertAdjacentElement('afterend', activityCell);
       }
-      activityCell.textContent = formatLastSession(lastSessionByEmail[email]);
+      const display = formatLastSession(lastSessionByEmail[email]);
+      if (activityCell.textContent !== display) activityCell.textContent = display;
 
       row.querySelectorAll('.badge.owner').forEach(badge => {
-        badge.textContent = 'Desenvolvedor';
+        if (badge.textContent !== 'Desenvolvedor') badge.textContent = 'Desenvolvedor';
       });
     });
   }
