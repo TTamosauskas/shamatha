@@ -67,8 +67,16 @@
   }
 
   const style = document.createElement('style');
-  style.textContent = '#unitScroll .reflection > .validation-note{display:none!important;}';
+  style.textContent = '#unitScroll .reflection > .validation-note{display:none!important;}#countdownEndFooter{position:absolute;left:0;right:0;bottom:0;}';
   document.head.appendChild(style);
+
+  function stopCountdownSignals() {
+    clearTimeout(gongTimer);
+    countdownObserver?.disconnect();
+    countdownObserver = null;
+  }
+
+  document.addEventListener('shamatha:practice-ended', stopCountdownSignals);
 
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
@@ -76,8 +84,7 @@
     if (!startButton) return;
 
     getCueContext();
-    clearTimeout(gongTimer);
-    countdownObserver?.disconnect();
+    stopCountdownSignals();
     let lastDigit = '';
 
     countdownObserver = new MutationObserver(() => {
@@ -98,7 +105,7 @@
   });
 
   // O evento ended não borbulha, mas participa da fase de captura. Interrompê-lo
-  // aqui impede a transição automática registrada no elemento de áudio pelo app.
+  // aqui mantém a prática aberta para o usuário decidir quando encerrá-la.
   document.addEventListener('ended', event => {
     if (!audio || event.target !== audio) return;
     event.stopPropagation();
@@ -123,5 +130,7 @@
 
     const endButton = document.getElementById('endSession');
     if (endButton) endButton.textContent = 'Encerrar prática';
+
+    document.dispatchEvent(new CustomEvent('shamatha:audio-ended'));
   }, true);
 })();

@@ -37,6 +37,8 @@
   let journeyLayoutTimer = null;
   let recoveredSessionPending = false;
   let progressWatchTimer = null;
+  let endControlTimer = null;
+  let endControlPinned = false;
 
   const DAY_MS = 86400000;
   const stagePositions = {
@@ -207,6 +209,26 @@
     toastTimer = setTimeout(() => el.toast.classList.remove('show'), 3300);
   }
 
+  function practiceEndFooter() {
+    return document.getElementById('practiceEndFooter');
+  }
+
+  function showPracticeEndControl({ persistent = false, hideAfter = 2400 } = {}) {
+    const footer = practiceEndFooter();
+    if (!footer) return;
+    clearTimeout(endControlTimer);
+    if (persistent) endControlPinned = true;
+    footer.classList.add('activity-visible');
+    if (!endControlPinned && hideAfter > 0) {
+      endControlTimer = setTimeout(() => footer.classList.remove('activity-visible'), hideAfter);
+    }
+  }
+
+  function revealEndControlFromInteraction() {
+    if (sessionState !== 'active' || endControlPinned) return;
+    showPracticeEndControl({ hideAfter:2400 });
+  }
+
   function rebuildUniformJourneyLayout() {
     const path = document.querySelector('.path-line');
     const svg = document.querySelector('.journey-svg');
@@ -295,7 +317,7 @@
   }
 
   function closeUnit() {
-    if (['active','countdown'].includes(sessionState)) { showToast('Use “Encerrar sessão” para registrar corretamente a prática em andamento.'); return; }
+    if (['active','countdown'].includes(sessionState)) { showToast('Use “Encerrar prática” para registrar corretamente a prática em andamento.'); return; }
     el.modal.classList.add('hidden'); document.body.style.overflow='';
   }
 
@@ -330,11 +352,17 @@
 
   function renderPreparation() {
     sessionState='preparation'; currentSession=null; clearActiveSession();
+    clearTimeout(endControlTimer); endControlPinned=false;
     const cfg=config(), next=Math.min(completedCount()+1,cfg.sessionsRequired);
-    el.scroll.innerHTML=`<div class="view prep"><button class="prep-back-link" id="backFromPreparation" type="button">◀️ Voltar</button><div class="prep-inner"><p class="session-count">Sessão ${next} · etapa ${selectedStage}</p><p class="prep-copy" id="prepCopy">Encontre uma posição estável.<br>Quando estiver pronto, comece.</p><div class="start-orb-wrap"><button class="start-orb" id="startSession" aria-live="polite">Começar</button></div><div class="review-video-row" id="reviewVideoRow"><button class="review-video-link" id="reviewVideo" type="button">Rever vídeo</button></div></div></div>`;
+    el.scroll.innerHTML=`<div class="view prep"><button class="prep-back-link" id="backFromPreparation" type="button">◀️ Voltar</button><div class="prep-inner"><p class="session-count">Sessão ${next} · etapa ${selectedStage}</p><p class="prep-copy" id="prepCopy">Encontre uma posição estável.<br>Quando estiver pronto, comece.</p><div class="start-orb-wrap"><button class="start-orb" id="startSession" aria-live="polite">Começar</button></div><div class="review-video-row" id="reviewVideoRow"><button class="review-video-link" id="reviewVideo" type="button">Rever vídeo</button></div></div><footer class="active-footer" id="countdownEndFooter"><button class="danger" id="endCountdown" type="button">Encerrar prática</button></footer></div>`;
     document.getElementById('startSession').addEventListener('click',beginCountdown);
     document.getElementById('reviewVideo').addEventListener('click',renderIntro);
     document.getElementById('backFromPreparation').addEventListener('click',closeUnit);
+    document.getElementById('endCountdown').addEventListener('click',()=>{
+      if(sessionState!=='countdown' || !currentSession) return;
+      currentSession.startedAt=Date.now();
+      endPractice(true);
+    });
   }
 
   async function unlockAudio() {
@@ -350,23 +378,25 @@
     sessionState='countdown';
     currentSession={id:`s_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,stage:selectedStage,sessionNumber:Math.min(completedCount()+1,config().sessionsRequired),startedAt:null,endedAt:null,elapsedSeconds:0,playbackSeconds:0,audioDuration:Number.isFinite(el.audio.duration)?el.audio.duration:0,endedEarly:false,paused:false};
     saveActiveSession();
+    document.getElementById('countdownEndFooter')?.classList.add('activity-visible');
     const btn=document.getElementById('startSession'); btn.classList.add('breathing','counting'); btn.disabled=true;
     let n=5; const tick=()=>{btn.classList.remove('tick');void btn.offsetWidth;btn.textContent=String(n);btn.classList.add('tick');if(n===1)countdownTimer=setTimeout(startPractice,1000);else{n-=1;countdownTimer=setTimeout(tick,1000);}}; tick();
   }
 
   async function startPractice() {
-    clearTimeout(countdownTimer); sessionState='active'; currentSession.startedAt=Date.now();
+    clearTimeout(countdownTimer); sessionState='active'; currentSession.startedAt=Date.now(); endControlPinned=false;
     const cfg=config();
     if (cfg.audioUrl) {
       el.audio.src=cfg.audioUrl; el.audio.currentTime=0; el.audio.volume=1;
       try { await el.audio.play(); } catch (_) { showToast('Toque no botão central para iniciar o áudio.'); currentSession.paused=true; }
     } else { currentSession.audioDuration=0; currentSession.paused=false; }
     saveActiveSession(); renderActive();
+    showPracticeEndControl({ hideAfter:1000 });
   }
 
   function renderActive() {
     const hasAudio=Boolean(config().audioUrl);
-    el.scroll.innerHTML=`<div class="view practice-active"><div class="active-center"><div class="active-breath ${currentSession.paused?'paused':''}" id="audioProgressRing" style="--audio-progress:0%"><button class="active-toggle" id="audioToggle" type="button" aria-label="${currentSession.paused?'Retomar áudio':'Pausar áudio'}"><span class="active-symbol">${currentSession.paused?'▶':'Ⅱ'}</span></button></div><p class="active-started"><strong>Prática iniciada</strong>${hasAudio?'Acompanhe o áudio e volte à respiração.':'A etapa está configurada como prática silenciosa.'}</p></div><footer class="active-footer activity-visible"><button class="danger" id="endSession">Encerrar sessão</button></footer></div>`;
+    el.scroll.innerHTML=`<div class="view practice-active"><div class="active-center"><div class="active-breath ${currentSession.paused?'paused':''}" id="audioProgressRing" style="--audio-progress:0%"><button class="active-toggle" id="audioToggle" type="button" aria-label="${currentSession.paused?'Retomar áudio':'Pausar áudio'}"><span class="active-symbol">${currentSession.paused?'▶':'Ⅱ'}</span></button></div><p class="active-started"><strong>Prática iniciada</strong>${hasAudio?'Acompanhe o áudio e volte à respiração.':'A etapa está configurada como prática silenciosa.'}</p></div><footer class="active-footer activity-visible" id="practiceEndFooter"><button class="danger" id="endSession">Encerrar prática</button></footer></div>`;
     document.getElementById('audioToggle').addEventListener('click',toggleAudio);
     document.getElementById('endSession').addEventListener('click',()=>endPractice(true));
   }
@@ -381,17 +411,19 @@
 
   function endPractice(endedEarly) {
     if(!currentSession) return;
-    const now=Date.now(), playback=config().audioUrl && Number.isFinite(el.audio.currentTime)?el.audio.currentTime:Math.max(0,(now-currentSession.startedAt)/1000);
+    clearTimeout(countdownTimer); clearTimeout(endControlTimer); endControlPinned=false;
+    document.dispatchEvent(new CustomEvent('shamatha:practice-ended'));
+    const now=Date.now(), startedAt=Number(currentSession.startedAt || now), playback=config().audioUrl && Number.isFinite(el.audio.currentTime)?el.audio.currentTime:Math.max(0,(now-startedAt)/1000);
     const duration=Number.isFinite(el.audio.duration)?el.audio.duration:(currentSession.audioDuration||0);
     el.audio.pause();
-    currentSession={...currentSession,endedAt:now,elapsedSeconds:Math.max(0,Math.round((now-currentSession.startedAt)/1000)),playbackSeconds:Math.max(0,playback),audioDuration:duration,endedEarly:Boolean(endedEarly),paused:false};
+    currentSession={...currentSession,startedAt,endedAt:now,elapsedSeconds:Math.max(0,Math.round((now-startedAt)/1000)),playbackSeconds:Math.max(0,playback),audioDuration:duration,endedEarly:Boolean(endedEarly),paused:false};
     clearActiveSession(); sessionState='reflection'; renderReflection();
   }
 
   function renderReflection() {
     if(!currentSession){renderPreparation();return;}
     const cfg=config();
-    el.scroll.innerHTML=`<div class="view reflection"><div class="unit-heading reflection-heading"><p class="eyebrow">Registro da prática</p><h1>Como foi esta sessão?</h1></div><div class="elapsed-card"><small>Tempo de prática</small><strong>${escapeHtml(formatDuration(currentSession.elapsedSeconds))}</strong></div><div class="field"><div class="field-label"><span>Presença percebida</span><span class="lucidity-value" id="lucidityValue">Escolha um valor</span></div><div class="range-shell"><input id="lucidity" class="empty-range" type="range" min="0" max="100" value="50" data-chosen="false"><div class="range-labels"><span>Disperso</span><span>Presente</span><span>Lúcido</span></div></div></div><div class="field"><div class="field-label"><span>Observações</span></div><div class="notes-wrap"><textarea id="notes" placeholder="O que você percebeu durante a prática?"></textarea></div></div><div class="validation-note">Uma sessão válida por dia entra na janela móvel dos últimos ${escapeHtml(cfg.deadlineDays)} dias.</div><div class="after-actions"><button class="primary" id="saveSession">Salvar sessão</button><button class="ghost" id="discardReflection">Voltar ao caminho</button></div><div id="saveArea"></div></div>`;
+    el.scroll.innerHTML=`<div class="view reflection"><div class="unit-heading reflection-heading"><p class="eyebrow">Registro da prática</p><h1>Como foi esta sessão?</h1></div><div class="elapsed-card"><small>Tempo de prática</small><strong>${escapeHtml(formatDuration(currentSession.elapsedSeconds))}</strong></div><div class="field"><div class="field-label"><span>Nível de concentração</span><span class="lucidity-value" id="lucidityValue">Escolha um valor</span></div><div class="range-shell"><input id="lucidity" class="empty-range" type="range" min="0" max="100" value="50" data-chosen="false"><div class="range-labels"><span>Baixa</span><span>Média</span><span>Alta</span></div></div></div><div class="field"><div class="field-label"><span>Observações</span></div><div class="notes-wrap"><textarea id="notes" placeholder="O que você percebeu durante a prática?"></textarea></div></div><div class="validation-note">Uma sessão válida por dia entra na janela móvel dos últimos ${escapeHtml(cfg.deadlineDays)} dias.</div><div class="after-actions"><button class="primary" id="saveSession">Salvar sessão</button><button class="ghost" id="discardReflection">Voltar ao caminho</button></div><div id="saveArea"></div></div>`;
     const range=document.getElementById('lucidity'); range.addEventListener('input',()=>{range.dataset.chosen='true';range.classList.remove('empty-range');document.getElementById('lucidityValue').textContent=`${range.value}%`;});
     document.getElementById('saveSession').addEventListener('click',saveCurrentSession);
     document.getElementById('discardReflection').addEventListener('click',()=>{currentSession=null;sessionState='preparation';closeUnit();});
@@ -400,7 +432,7 @@
   function saveCurrentSession() {
     if(!currentSession || currentSession.saved) return;
     const lucidityEl=document.getElementById('lucidity'), notesEl=document.getElementById('notes');
-    if(!lucidityEl || lucidityEl.dataset.chosen!=='true'){showToast('Escolha a presença percebida antes de salvar.');lucidityEl?.focus();return;}
+    if(!lucidityEl || lucidityEl.dataset.chosen!=='true'){showToast('Escolha o nível de concentração antes de salvar.');lucidityEl?.focus();return;}
     const cfg=config(), st=stageState();
     const dateKey=localDateKey(currentSession.startedAt);
     const effectivePractice=config().audioUrl ? Number(currentSession.playbackSeconds||0) : Number(currentSession.elapsedSeconds||0);
@@ -431,7 +463,7 @@
   }
 
   function buildShareText(session) {
-    const observation=(session.notes||'').trim(); return `Hoje meditei por ${formatRoundedDuration(session.elapsedSeconds)} e estimo ${session.lucidity}% de presença.${observation?` ${observation}`:''}`;
+    const observation=(session.notes||'').trim(); return `Hoje meditei por ${formatRoundedDuration(session.elapsedSeconds)} e estimo ${session.lucidity}% de concentração.${observation?` ${observation}`:''}`;
   }
 
   function markShared(id) {
@@ -455,6 +487,13 @@
   });
   el.audio.addEventListener('ended',()=>endPractice(false));
 
+  document.addEventListener('shamatha:audio-ended',()=>{
+    if(sessionState!=='active') return;
+    showPracticeEndControl({ persistent:true, hideAfter:0 });
+  });
+  el.scroll.addEventListener('pointerdown',revealEndControlFromInteraction,{passive:true});
+  el.scroll.addEventListener('keydown',revealEndControlFromInteraction);
+
   el.continuePath.addEventListener('click',()=>{
     if(recoveredSessionPending&&currentSession){recoveredSessionPending=false;openUnit('reflection');showToast('A prática interrompida foi recuperada para registro.');return;}
     applyProgressRules(); selectedStage=progress.currentStage; openUnit(stageState().introDone?'practice':'intro');
@@ -470,7 +509,7 @@
   }));
 
   el.logout.addEventListener('click',async()=>{await api('/api/logout',{method:'POST',body:'{}'}).catch(()=>null);location.href='./index.html';});
-  window.addEventListener('beforeunload',()=>{if(['active','countdown'].includes(sessionState))saveActiveSession();clearInterval(progressWatchTimer);});
+  window.addEventListener('beforeunload',()=>{if(['active','countdown'].includes(sessionState))saveActiveSession();clearInterval(progressWatchTimer);clearTimeout(endControlTimer);});
   window.addEventListener('resize',()=>{clearTimeout(journeyLayoutTimer);journeyLayoutTimer=setTimeout(()=>{rebuildUniformJourneyLayout();updateHome();},120);});
 
   async function init() {

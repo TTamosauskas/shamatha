@@ -12,7 +12,7 @@
       error = document.createElement('div');
       error.className = 'presence-error';
       error.setAttribute('role', 'alert');
-      error.textContent = 'Escolha um valor em Presença percebida antes de salvar.';
+      error.textContent = 'Escolha um valor em Nível de concentração antes de salvar.';
       field.appendChild(error);
     }
     try { range.focus({ preventScroll:false }); }
