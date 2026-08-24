@@ -4,13 +4,7 @@
   const backend = window.ShamathaBackend;
   if (!backend || typeof backend.request !== 'function') return;
 
-  const state = {
-    appData: null,
-    progress: null,
-    activeStage: null,
-    activeSessionNumber: null
-  };
-
+  const state = { appData:null, progress:null, activeStage:null };
   const originalRequest = backend.request.bind(backend);
 
   function stageState(progress, stage) {
@@ -28,23 +22,12 @@
     return Math.min(Number(cfg.sessionsRequired || 0), (st.sessions || []).filter(session => session.countedForProgress).length);
   }
 
-  function nextSessionNumber(stage) {
-    const cfg = stageConfig(stage);
-    if (!cfg) return 1;
-    return Math.max(1, Math.min(Number(cfg.sessionsRequired || 1), countedCount(stage) + 1));
-  }
-
   function markNewestFreeSession(progress) {
     const now = Date.now();
     for (const st of Object.values(progress?.stages || {})) {
       for (const session of st?.sessions || []) {
         const savedAt = Number(session?.savedAt || 0);
-        if (
-          session?.countedForProgress === false &&
-          session?.freeSession !== true &&
-          savedAt > 0 &&
-          Math.abs(now - savedAt) <= 60000
-        ) {
+        if (session?.countedForProgress === false && session?.freeSession !== true && savedAt > 0 && Math.abs(now - savedAt) <= 60000) {
           session.freeSession = true;
         }
       }
@@ -54,64 +37,46 @@
 
   backend.request = async function wrappedRequest(path, options = {}) {
     let nextOptions = options;
-
     if (path === '/api/progress' && String(options.method || '').toUpperCase() === 'PUT' && typeof options.body === 'string') {
       try {
         const payload = JSON.parse(options.body);
         if (payload?.progress) {
           payload.progress = markNewestFreeSession(payload.progress);
           state.progress = payload.progress;
-          nextOptions = { ...options, body: JSON.stringify(payload) };
+          nextOptions = { ...options, body:JSON.stringify(payload) };
         }
       } catch (_) {}
     }
-
     const result = await originalRequest(path, nextOptions);
-
     if (path === '/api/app-data' && result) {
       state.appData = result;
       state.progress = result.progress;
     }
-
     return result;
   };
 
   function parseStageFromToolbar() {
-    const toolbar = document.getElementById('toolbarStage');
-    const text = String(toolbar?.textContent || '').trim();
+    const text = String(document.getElementById('toolbarStage')?.textContent || '').trim();
     const match = text.match(/^Etapa\s+(\d+)/i);
-    if (!match) return null;
-    return Number(match[1]);
+    return match ? Number(match[1]) : null;
   }
 
-  function parseSessionCount() {
-    const label = document.querySelector('#unitScroll .session-count');
-    const text = String(label?.textContent || '').trim();
-    const match = text.match(/Sessão\s+(\d+)\s*[·•]\s*etapa\s+(\d+)/i);
-    if (!match) return null;
-    return { session: Number(match[1]), stage: Number(match[2]) };
+  function parseStageFromSessionLabel() {
+    const text = String(document.querySelector('#unitScroll .session-count')?.textContent || '').trim();
+    const match = text.match(/Sessão\s+\d+\s*[·•]\s*etapa\s+(\d+)/i);
+    return match ? Number(match[1]) : null;
   }
 
-  function syncSessionHeader() {
+  function syncPracticeHeader() {
     const toolbar = document.getElementById('toolbarStage');
     if (!toolbar) return;
-
-    const parsedCount = parseSessionCount();
-    if (parsedCount) {
-      state.activeStage = parsedCount.stage;
-      state.activeSessionNumber = parsedCount.session;
-    } else {
-      const parsedStage = parseStageFromToolbar();
-      if (parsedStage) {
-        state.activeStage = parsedStage;
-        state.activeSessionNumber = nextSessionNumber(parsedStage);
-      }
-    }
-
-    if (state.activeStage && state.activeSessionNumber) {
-      const desired = `Sessão ${state.activeSessionNumber} · etapa ${state.activeStage}`;
-      if (toolbar.textContent !== desired) toolbar.textContent = desired;
-    }
+    const stage = parseStageFromSessionLabel() || parseStageFromToolbar() || state.activeStage;
+    if (!stage) return;
+    state.activeStage = stage;
+    const cfg = stageConfig(stage);
+    if (!cfg) return;
+    const desired = `Etapa ${stage} — ${cfg.unitName}`;
+    if (toolbar.textContent !== desired) toolbar.textContent = desired;
   }
 
   function freeSessionCount(stage) {
@@ -124,17 +89,14 @@
     const saveArea = document.getElementById('saveArea');
     const firstFact = saveArea?.querySelector('.progress-facts > span:first-child');
     if (!reflection || !saveArea || !saveArea.children.length || !firstFact) return;
-
     reflection.classList.add('session-saved');
 
     const stage = state.activeStage;
     const cfg = stageConfig(stage);
     if (!stage || !cfg) return;
-
     const count = countedCount(stage);
     const required = Number(cfg.sessionsRequired || 0);
     const free = freeSessionCount(stage);
-
     if (free > 0) {
       const freeLabel = free === 1 ? 'sessão livre' : 'sessões livres';
       firstFact.innerHTML = `<strong>${count} de ${required}</strong> sessões diárias concluídas e <strong>${free}</strong> ${freeLabel}.`;
@@ -145,6 +107,8 @@
     const field = range?.closest('.field');
     if (!field) return;
     field.classList.add('presence-invalid');
+    const value = field.querySelector('.lucidity-value');
+    if (value) value.textContent = 'Escolha um valor';
     let error = field.querySelector('.presence-error');
     if (!error) {
       error = document.createElement('div');
@@ -173,8 +137,7 @@
 
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    const saveButton = target?.closest('#saveSession');
-    if (saveButton) {
+    if (target?.closest('#saveSession')) {
       const range = document.getElementById('lucidity');
       if (range && range.dataset.chosen !== 'true') {
         event.preventDefault();
@@ -194,21 +157,13 @@
 
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('#shareWhatsapp')) {
-      setTimeout(closePracticeWindow, 0);
-    }
-  });
+    if (target?.closest('#shareWhatsapp')) setTimeout(closePracticeWindow, 0);
+  }, true);
 
   const scroll = document.getElementById('unitScroll');
   const toolbar = document.getElementById('toolbarStage');
-
-  const sync = () => {
-    syncSessionHeader();
-    syncProgressFacts();
-  };
-
-  if (scroll) new MutationObserver(sync).observe(scroll, { childList: true, subtree: true });
-  if (toolbar) new MutationObserver(syncSessionHeader).observe(toolbar, { childList: true, subtree: true, characterData: true });
-
+  const sync = () => { syncPracticeHeader(); syncProgressFacts(); };
+  if (scroll) new MutationObserver(sync).observe(scroll, { childList:true, subtree:true });
+  if (toolbar) new MutationObserver(syncPracticeHeader).observe(toolbar, { childList:true, subtree:true, characterData:true });
   sync();
 })();
