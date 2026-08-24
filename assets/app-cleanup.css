@@ -42,3 +42,19 @@ input[type="range"].empty-range::-moz-range-thumb{opacity:1!important;}
 .home-actions{display:flex;align-items:flex-start;gap:8px;}
 .live-class-schedule-text{pointer-events:none;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.48);backdrop-filter:blur(10px);font-size:11px;line-height:1.2;color:#000000;white-space:nowrap;}
 @media(max-width:640px){.live-class-schedule-text{font-size:10px;max-width:44vw;white-space:normal;text-align:right;}}
+
+/* Instalação, notificações e lembrete diário. */
+.onboarding-card{max-height:min(82vh,620px);overflow:auto;overscroll-behavior:contain;}
+.onboarding-step{display:grid;gap:4px;}
+.onboarding-kicker{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;}
+.reminder-time-field{display:grid;gap:6px;font-size:12px;font-weight:700;color:#334155;}
+.reminder-time-field input[type="time"]{width:100%;min-height:44px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;padding:8px 12px;color:#0f172a;font:600 16px/1.2 system-ui,sans-serif;}
+.reminder-toggle{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid #dbe4ec;border-radius:12px;background:#fff;font-size:13px;font-weight:700;color:#1e293b;}
+.reminder-toggle input{width:18px;height:18px;margin:0;}
+.settings-note{padding:10px 12px;border-radius:12px;background:#f1f5f9;border:1px solid #dbe4ec;}
+.settings-note strong{font:700 13px/1.2 system-ui,sans-serif;}
+.settings-note p{font-size:12px;}
+.settings-enable-push,.install-inline{width:100%;min-height:42px;}
+.reminder-settings-button{min-height:34px;padding:7px 10px;border-radius:999px;border:1px solid rgba(15,23,42,.14);background:rgba(255,255,255,.62);backdrop-filter:blur(10px);color:#0f172a;font:700 11px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(15,23,42,.08);}
+.reminder-settings-button:focus-visible{outline:2px solid #0f172a;outline-offset:2px;}
+@media(max-width:640px){.home-actions{gap:5px;flex-wrap:wrap;justify-content:flex-end;}.reminder-settings-button{font-size:10px;padding:6px 8px;}.onboarding-card{bottom:max(12px,env(safe-area-inset-bottom));padding:14px;}}
