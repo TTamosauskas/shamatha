@@ -132,6 +132,43 @@
     return { user:publicUser(data) };
   }
 
+  function clampInt(value, min, max, fallback) {
+    const n = Number.parseInt(value, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function safeUrl(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    try {
+      const url = new URL(text);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocol');
+      return url.href;
+    } catch (_) {
+      return fail('Use uma URL completa começando com http:// ou https://.');
+    }
+  }
+
+  async function saveStage(number, options) {
+    await ensureEditor();
+    const body = parseBody(options);
+    const row = {
+      stage_name:String(body.stageName || '').trim().slice(0, 120),
+      unit_name:String(body.unitName || '').trim().slice(0, 160),
+      objective:String(body.objective || '').trim().slice(0, 1200),
+      sessions_required:clampInt(body.sessionsRequired, 1, 30, 3),
+      deadline_days:clampInt(body.deadlineDays, 1, 365, 7),
+      min_session_seconds:clampInt(body.minSessionSeconds, 0, 86400, 300),
+      video_url:safeUrl(body.videoUrl),
+      updated_at:new Date().toISOString()
+    };
+    const saved = await sb.from('stages').update(row).eq('number', number).select('*').single();
+    if (saved.error) fail(saved.error.message || 'Falha ao salvar a etapa.');
+    const [stage] = await enhanceStages([rowToStage(saved.data)]);
+    return { stage };
+  }
+
   function audioInfo(file) {
     if (!(file instanceof Blob) || !file.size) fail('Escolha um arquivo de áudio.');
     if (file.size > MAX_AUDIO_BYTES) fail('O arquivo de áudio pode ter até 100 MB.');
@@ -208,11 +245,7 @@
     if (audioMatch && method === 'DELETE') return removeAudio(Number(audioMatch[1]));
 
     const stageMatch = path.match(/^\/api\/editor\/stages\/(\d+)$/);
-    if (stageMatch && method === 'PUT') {
-      const data = await base.request(path, options);
-      const [stage] = await enhanceStages([data.stage]);
-      return { ...data, stage };
-    }
+    if (stageMatch && method === 'PUT') return saveStage(Number(stageMatch[1]), options);
 
     return base.request(path, options);
   }
