@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Centro Pineal — Editor</title>
-  <link rel="stylesheet" href="./assets/site.css?v=20260824-1040">
-  <link rel="stylesheet" href="./assets/editor-v2.css?v=20260824-1040">
-  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260824-1040">
+  <link rel="stylesheet" href="./assets/site.css?v=20260824-1102">
+  <link rel="stylesheet" href="./assets/editor-v2.css?v=20260824-1102">
+  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260824-1102">
 </head>
 <body>
   <main class="shell">
@@ -28,6 +28,12 @@
           <div class="field invite-submit"><label>&nbsp;</label><button class="btn primary small" type="submit">Adicionar</button></div>
         </form>
         <div id="accessStatus" class="status hidden"></div>
+        <hr class="soft-rule">
+        <form id="settingsForm">
+          <div class="field"><label for="whatsappPhone">WhatsApp do professor</label><input id="whatsappPhone" inputmode="numeric" placeholder="5541999999999" /></div>
+          <button class="btn secondary small" type="submit">Salvar WhatsApp</button>
+        </form>
+        <div id="settingsStatus" class="status hidden"></div>
       </div>
 
       <div class="card">
@@ -35,7 +41,7 @@
           <div><h2>Aula ao vivo</h2><p>Agende usando o horário de Curitiba. O link aparece aos alunos somente no horário da aula e permanece por 30 minutos.</p></div>
         </div>
         <form id="liveClassForm">
-          <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" placeholder="https://meet.google.com/... ou https://zoom.us/..." required></div>
+          <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" value="https://us06web.zoom.us/j/84674720127" placeholder="https://us06web.zoom.us/j/..." required></div>
           <div class="live-schedule-grid">
             <div class="field"><label for="liveClassAt">Data e hora — Curitiba</label><input id="liveClassAt" type="datetime-local" required></div>
             <div class="field live-schedule-button"><label>&nbsp;</label><button class="btn primary small" type="submit">Agendar</button></div>
@@ -43,12 +49,6 @@
         </form>
         <div id="liveClassStatus" class="status hidden"></div>
         <div id="liveClassList" class="live-class-list"></div>
-        <hr class="soft-rule">
-        <form id="settingsForm">
-          <div class="field"><label for="whatsappPhone">WhatsApp do professor</label><input id="whatsappPhone" inputmode="numeric" placeholder="5541999999999" /></div>
-          <button class="btn secondary small" type="submit">Salvar WhatsApp</button>
-        </form>
-        <div id="settingsStatus" class="status hidden"></div>
       </div>
     </section>
 
@@ -59,7 +59,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>E-mail</th><th>Função</th><th>Estado</th><th>Ações</th></tr></thead>
+          <thead><tr><th>E-mail</th><th>Última Sessão</th><th>Função</th><th>Estado</th><th>Ações</th></tr></thead>
           <tbody id="usersBody"></tbody>
         </table>
       </div>
@@ -73,11 +73,12 @@
     </section>
   </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20260824-1040"></script>
-<script src="./assets/supabase-backend.js?v=20260824-1040"></script>
-<script src="./assets/shamatha-extensions.js?v=20260824-1040"></script>
-<script src="./assets/runtime-v3.js?v=20260824-1040"></script>
-<script src="./assets/editor-v2.js?v=20260824-1040"></script>
-<script src="./assets/editor-cleanup.js?v=20260824-1040"></script>
+<script src="./assets/config.js?v=20260824-1102"></script>
+<script src="./assets/supabase-backend.js?v=20260824-1102"></script>
+<script src="./assets/shamatha-extensions.js?v=20260824-1102"></script>
+<script src="./assets/runtime-v3.js?v=20260824-1102"></script>
+<script src="./assets/editor-v2.js?v=20260824-1102"></script>
+<script src="./assets/editor-cleanup.js?v=20260824-1102"></script>
+<script src="./assets/editor-enhancements.js?v=20260824-1102"></script>
 </body>
 </html>
