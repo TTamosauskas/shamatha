@@ -15,11 +15,37 @@
     return state.appData?.stages?.[Number(stage) - 1] || null;
   }
 
+  function localDateKey(value) {
+    const d = value instanceof Date ? value : new Date(value);
+    return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+  }
+
+  function sessionTime(session) {
+    for (const value of [session?.startedAt, session?.savedAt, session?.endedAt]) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) return numeric;
+      const parsed = new Date(value).getTime();
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 0;
+  }
+
+  function inWindow(session, stage) {
+    const cfg = stageConfig(stage);
+    if (!cfg) return false;
+    const days = Math.max(1, Number(cfg.deadlineDays || 1));
+    const start = new Date();
+    start.setHours(0,0,0,0);
+    start.setDate(start.getDate() - (days - 1));
+    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(session?.dateKey || '')) ? session.dateKey : (sessionTime(session) ? localDateKey(sessionTime(session)) : '');
+    return Boolean(key && key >= localDateKey(start));
+  }
+
   function countedCount(stage) {
     const st = stageState(state.progress, stage);
     const cfg = stageConfig(stage);
     if (!st || !cfg) return 0;
-    return Math.min(Number(cfg.sessionsRequired || 0), (st.sessions || []).filter(session => session.countedForProgress).length);
+    return Math.min(Number(cfg.sessionsRequired || 0), (st.sessions || []).filter(session => session.countedForProgress && inWindow(session, stage)).length);
   }
 
   function markNewestFreeSession(progress) {
@@ -81,7 +107,7 @@
 
   function freeSessionCount(stage) {
     const st = stageState(state.progress, stage);
-    return (st?.sessions || []).filter(session => session?.freeSession === true).length;
+    return (st?.sessions || []).filter(session => session?.freeSession === true && inWindow(session, stage)).length;
   }
 
   function syncProgressFacts() {
@@ -96,10 +122,14 @@
     if (!stage || !cfg) return;
     const count = countedCount(stage);
     const required = Number(cfg.sessionsRequired || 0);
+    const days = Number(cfg.deadlineDays || 0);
     const free = freeSessionCount(stage);
+    const base = `<strong>${count} de ${required}</strong> sessões válidas nos últimos ${days} dias`;
     if (free > 0) {
       const freeLabel = free === 1 ? 'sessão livre' : 'sessões livres';
-      firstFact.innerHTML = `<strong>${count} de ${required}</strong> sessões diárias concluídas e <strong>${free}</strong> ${freeLabel}.`;
+      firstFact.innerHTML = `${base} e <strong>${free}</strong> ${freeLabel}.`;
+    } else {
+      firstFact.innerHTML = `${base}.`;
     }
   }
 
