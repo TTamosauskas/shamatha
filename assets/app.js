@@ -112,11 +112,19 @@
 
   function ensureCycle(stage) {
     const st = stageState(stage), cfg = config(stage);
-    if (st.completedAt || !st.cycleStartedAt) return { completed:false, advanced:false, reset:false };
+    if (st.completedAt) return { completed:false, advanced:false, reset:false };
+
+    const count = completedCount(stage);
+    if (advancementRequirement(stage) === 'sessions' && count >= cfg.sessionsRequired) {
+      const result = completeStage(stage);
+      saveProgress({ immediate:true });
+      return { ...result, reset:false };
+    }
+
+    if (!st.cycleStartedAt) return { completed:false, advanced:false, reset:false };
     const expired = Date.now() > new Date(st.cycleStartedAt).getTime() + cfg.deadlineDays * 86400000;
     if (!expired) return { completed:false, advanced:false, reset:false };
 
-    const count = completedCount(stage);
     if (advancementRequirement(stage) === 'deadline' && count >= cfg.sessionsRequired) {
       const result = completeStage(stage);
       saveProgress({ immediate:true });
@@ -192,7 +200,6 @@
       animateAdvance = true;
       showToast(cycleResult.advanced ? 'Prazo concluído. A próxima etapa foi liberada.' : 'Prazo concluído. Etapa finalizada.');
       current = progress.currentStage;
-      selectedStage = current;
     }
     const cfg = config(current), count = completedCount(current), allDone = current === 9 && Boolean(stageState(9).completedAt);
     const pos = currentPosition();
@@ -416,7 +423,7 @@
     const live=String(appData.settings.liveClassUrl||'').trim();
     if(live){el.liveClassBadge.href=live;el.liveClassBadge.classList.remove('hidden');el.liveClassBadge.setAttribute('aria-label',`Abrir aula ao vivo: ${live}`);}else{el.liveClassBadge.classList.add('hidden');}
     selectedStage=progress.currentStage; rebuildUniformJourneyLayout(); updateHome(); recoveredSessionPending=recoverInterruptedSession();
-    cycleWatchTimer=setInterval(()=>{if(progress)updateHome();},60000);
+    cycleWatchTimer=setInterval(()=>{if(progress && el.modal.classList.contains('hidden'))updateHome();},60000);
   }
 
   init().catch(error=>showToast(error.message));
