@@ -8,6 +8,7 @@
   const liveForm = document.getElementById('liveClassForm');
   const inviteForm = document.getElementById('inviteForm');
   const accessStatus = document.getElementById('accessStatus');
+  const stagesRoot = document.getElementById('stages');
   let lastSessionByEmail = {};
   let confirmedByEmail = {};
   let syncing = false;
@@ -31,6 +32,22 @@
 
   function ensureDefaultLiveUrl() {
     if (liveUrl && !String(liveUrl.value || '').trim()) liveUrl.value = DEFAULT_LIVE_URL;
+  }
+
+  function syncRollingWindowLabels() {
+    if (!stagesRoot) return;
+    stagesRoot.querySelectorAll('.stage-form').forEach(form => {
+      const input = form.querySelector('input[name="deadlineDays"]');
+      const field = input?.closest('.field');
+      const label = field?.querySelector('label');
+      if (label && label.textContent !== 'Janela de prática (dias)') label.textContent = 'Janela de prática (dias)';
+      if (field && !field.querySelector('.rolling-window-help')) {
+        const help = document.createElement('small');
+        help.className = 'field-help rolling-window-help';
+        help.textContent = 'A meta considera os últimos N dias. N dias sem nenhuma sessão válida fazem o aluno recuar uma etapa.';
+        field.appendChild(help);
+      }
+    });
   }
 
   async function copyText(value) {
@@ -153,6 +170,7 @@
   }
 
   ensureDefaultLiveUrl();
+  syncRollingWindowLabels();
 
   if (liveForm) {
     liveForm.addEventListener('submit', () => {
@@ -197,7 +215,12 @@
     new MutationObserver(syncUserRows).observe(tbody, { childList: true, subtree: true });
   }
 
+  if (stagesRoot) {
+    new MutationObserver(syncRollingWindowLabels).observe(stagesRoot, { childList:true, subtree:true });
+  }
+
   syncUserRows();
+  syncRollingWindowLabels();
   loadActivity();
   setInterval(loadActivity, 60000);
 })();
