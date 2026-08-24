@@ -40,5 +40,5 @@ input[type="range"].empty-range::-moz-range-thumb{opacity:1!important;}
 
 /* Agenda de aula ao vivo. */
 .home-actions{display:flex;align-items:flex-start;gap:8px;}
-.live-class-schedule-text{pointer-events:none;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(8,15,22,.26);backdrop-filter:blur(10px);font-size:11px;line-height:1.2;color:rgba(255,255,255,.88);white-space:nowrap;}
+.live-class-schedule-text{pointer-events:none;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.48);backdrop-filter:blur(10px);font-size:11px;line-height:1.2;color:#000000;white-space:nowrap;}
 @media(max-width:640px){.live-class-schedule-text{font-size:10px;max-width:44vw;white-space:normal;text-align:right;}}
