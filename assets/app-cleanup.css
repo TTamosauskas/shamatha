@@ -1,0 +1,14 @@
+/* Ajustes de layout do cabeçalho e cartão principal. */
+.brand-block { pointer-events:auto; max-width:min(78%,560px); }
+.brand-meta { display:flex; flex-direction:column; align-items:flex-start; gap:5px; margin-top:9px; pointer-events:auto; }
+.brand-meta .home-status { margin-top:0; }
+.brand-meta .account-actions { justify-content:flex-start; }
+.unit-toolbar-minimal { justify-content:flex-end; }
+.current-card .card-topline {height: 0;}
+.current-card p {color: #000000;}
+@media (max-width:640px) {
+  .account-pill { display:inline-flex; }
+  .brand-block { max-width:74%; }
+  .brand-meta .account-actions { gap:5px; }
+  .account-pill, .account-link { min-height:30px; padding:0 8px; font-size:10px; }
+}
