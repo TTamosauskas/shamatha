@@ -1,0 +1,6 @@
+.editor-rule-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
+.advancement-requirement-field{min-width:0}
+.advancement-radio-row{min-height:42px;display:flex;align-items:center;gap:16px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#0f172a}
+.advancement-radio{display:inline-flex;align-items:center;gap:7px;margin:0;font:inherit;cursor:pointer;white-space:nowrap}
+.advancement-radio input{margin:0;width:16px;height:16px;accent-color:#0f172a}
+@media(max-width:800px){.editor-rule-grid{grid-template-columns:1fr}}
