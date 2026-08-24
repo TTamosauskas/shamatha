@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Centro Pineal — Editor</title>
+  <link rel="stylesheet" href="./assets/site.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><small>PAINEL DO EDITOR</small><strong>Centro Pineal</strong></div>
+      <div class="toolbar">
+        <a class="btn secondary small" href="./app.html">Visualizar caminho</a>
+        <button class="btn secondary small" id="logout" type="button">Sair</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <div class="section-head">
+          <div><h2>Liberação de acesso</h2><p>O aluno cria a conta primeiro; você libera ou suspende pelo e-mail cadastrado.</p></div>
+        </div>
+        <form id="accessForm" class="toolbar">
+          <input id="accessEmail" type="email" placeholder="aluno@exemplo.com" required style="flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px">
+          <button class="btn primary small" type="submit" data-action="grant">Liberar</button>
+          <button class="btn danger small" type="button" id="revokeByEmail">Suspender</button>
+        </form>
+        <div id="accessStatus" class="status hidden"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <div><h2>Aula ao vivo</h2><p>O botão do aluno usa exatamente a URL salva aqui.</p></div>
+        </div>
+        <form id="settingsForm">
+          <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" placeholder="https://meet.google.com/... ou https://zoom.us/..." /></div>
+          <div class="field"><label for="whatsappPhone">WhatsApp do professor</label><input id="whatsappPhone" inputmode="numeric" placeholder="5541999999999" /></div>
+          <button class="btn primary small" type="submit">Salvar configurações</button>
+        </form>
+        <div id="settingsStatus" class="status hidden"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px">
+      <div class="section-head">
+        <div><h2>Usuários cadastrados</h2><p>Contas de aluno e situação de acesso.</p></div>
+        <span class="badge" id="userCount">0 usuários</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Acesso</th><th>Ação</th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px">
+      <div class="section-head">
+        <div><h2>Conteúdo das 9 etapas</h2><p>Defina vídeo, áudio, objetivo e regras de progresso de cada etapa.</p></div>
+      </div>
+      <div id="stages"></div>
+    </section>
+  </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./assets/config.js"></script>
+<script src="./assets/supabase-backend.js"></script>
+<script src="./assets/editor.js"></script>
+</body>
+</html>
