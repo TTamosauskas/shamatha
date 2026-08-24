@@ -67,7 +67,7 @@
   }
 
   const style = document.createElement('style');
-  style.textContent = '#unitScroll .reflection > .validation-note{display:none!important;}';
+  style.textContent = '#unitScroll .reflection > .validation-note{display:none!important;}#countdownEndFooter{position:absolute;left:0;right:0;bottom:0;}';
   document.head.appendChild(style);
 
   function stopCountdownSignals() {
