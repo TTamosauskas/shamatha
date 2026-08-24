@@ -1,12 +1,13 @@
-const CACHE = 'shamatha-shell-v3';
+const CACHE = 'shamatha-shell-v4';
 const SHELL = [
   './',
   './index.html',
-  './app.html?v=20260824-1345',
-  './assets/app.css?v=20260824-1345',
-  './assets/app-cleanup.css?v=20260824-1345',
-  './assets/practice-ux.js?v=20260824-1345',
-  './assets/pwa.js?v=20260824-1345'
+  './app.html?v=20260824-1415',
+  './assets/app.css?v=20260824-1415',
+  './assets/app-cleanup.css?v=20260824-1415',
+  './assets/practice-flow.css?v=20260824-1415',
+  './assets/practice-ux.js?v=20260824-1415',
+  './assets/pwa.js?v=20260824-1415'
 ];
 
 self.addEventListener('install', event => {

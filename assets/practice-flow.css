@@ -1,0 +1,57 @@
+/* Fluxo de registro da prática: validação e estado pós-salvamento. */
+.field.presence-invalid {
+  border-radius: 14px;
+  outline: 2px solid rgba(220, 38, 38, .78);
+  outline-offset: 4px;
+}
+.field.presence-invalid .field-label span:first-child,
+.field.presence-invalid .lucidity-value {
+  color: #dc2626 !important;
+}
+.field.presence-invalid .range-shell {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, .62) !important;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.field.presence-invalid input[type="range"] {
+  accent-color: #dc2626;
+}
+.presence-error {
+  margin-top: 10px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Depois de salvar, o formulário desaparece e a saída volta ao topo. */
+.reflection.session-saved > .reflection-heading,
+.reflection.session-saved > .elapsed-card,
+.reflection.session-saved > .field,
+.reflection.session-saved > .validation-note {
+  display: none !important;
+}
+.reflection.session-saved > .after-actions {
+  display: block !important;
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+}
+.reflection.session-saved #saveSession {
+  display: none !important;
+}
+.reflection.session-saved #discardReflection {
+  display: inline-flex !important;
+  margin: 0 !important;
+}
+.reflection.session-saved > #saveArea {
+  margin-top: 0 !important;
+}
+.reflection.session-saved > #saveArea > .save-result {
+  margin-top: 0 !important;
+}
+
+/* As marcas do progresso são recriadas pelo JS conforme o número de sessões. */
+.progress-line .progress-mark {
+  transform: translateX(-50%);
+}
