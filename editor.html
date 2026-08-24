@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Centro Pineal — Editor</title>
-  <link rel="stylesheet" href="./assets/site.css">
-  <link rel="stylesheet" href="./assets/editor-v2.css">
-  <link rel="stylesheet" href="./assets/editor-cleanup.css">
+  <link rel="stylesheet" href="./assets/site.css?v=20260824-1040">
+  <link rel="stylesheet" href="./assets/editor-v2.css?v=20260824-1040">
+  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260824-1040">
 </head>
 <body>
   <main class="shell">
@@ -21,20 +21,18 @@
     <section class="grid">
       <div class="card">
         <div class="section-head">
-          <div><h2>Liberação de acesso</h2><p>Inclua um e-mail para convidar um novo usuário ou atualizar alguém que já esteja na lista.</p></div>
+          <div><h2>Liberação de acesso</h2><p>Adicione o e-mail. Novos usuários entram como Aluno e Pendente.</p></div>
         </div>
-        <form id="inviteForm" class="invite-grid">
+        <form id="inviteForm" class="invite-grid invite-grid-simple">
           <div class="field invite-email"><label for="inviteEmail">E-mail</label><input id="inviteEmail" type="email" placeholder="aluno@exemplo.com" required></div>
-          <div class="field"><label for="inviteStatus">Estado inicial</label><select id="inviteStatus"><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="suspended">Suspenso</option></select></div>
-          <div class="field"><label for="inviteRole">Função</label><select id="inviteRole"><option value="student">Aluno</option><option value="editor">Editor</option></select></div>
-          <div class="field invite-submit"><label>&nbsp;</label><button class="btn primary small" type="submit">Convidar / adicionar</button></div>
+          <div class="field invite-submit"><label>&nbsp;</label><button class="btn primary small" type="submit">Adicionar</button></div>
         </form>
         <div id="accessStatus" class="status hidden"></div>
       </div>
 
       <div class="card">
         <div class="section-head">
-          <div><h2>Aula ao vivo</h2><p>Agende usando o horário de Curitiba. O link fica disponível aos alunos 30 minutos antes.</p></div>
+          <div><h2>Aula ao vivo</h2><p>Agende usando o horário de Curitiba. O link aparece aos alunos somente no horário da aula e permanece por 30 minutos.</p></div>
         </div>
         <form id="liveClassForm">
           <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" placeholder="https://meet.google.com/... ou https://zoom.us/..." required></div>
@@ -56,12 +54,12 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Usuários cadastrados</h2><p>Altere função e estado sem apagar o histórico de progresso. A conta principal permanece protegida.</p></div>
+        <div><h2>Usuários cadastrados</h2><p>Altere função e estado diretamente na linha do usuário. A conta principal permanece protegida.</p></div>
         <span class="badge" id="userCount">0 usuários</span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Função</th><th>Estado</th></tr></thead>
+          <thead><tr><th>E-mail</th><th>Função</th><th>Estado</th><th>Ações</th></tr></thead>
           <tbody id="usersBody"></tbody>
         </table>
       </div>
@@ -75,10 +73,10 @@
     </section>
   </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js"></script>
-<script src="./assets/supabase-backend.js"></script>
-<script src="./assets/shamatha-extensions.js"></script>
-<script src="./assets/editor-v2.js"></script>
-<script src="./assets/editor-cleanup.js"></script>
+<script src="./assets/config.js?v=20260824-1040"></script>
+<script src="./assets/supabase-backend.js?v=20260824-1040"></script>
+<script src="./assets/shamatha-extensions.js?v=20260824-1040"></script>
+<script src="./assets/editor-v2.js?v=20260824-1040"></script>
+<script src="./assets/editor-cleanup.js?v=20260824-1040"></script>
 </body>
 </html>
