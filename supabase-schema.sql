@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   email text not null unique,
   role text not null default 'student' check (role in ('student', 'editor')),
   access_granted boolean not null default false,
+  is_owner boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -25,6 +26,8 @@ create table if not exists public.stages (
   min_session_seconds integer not null default 300 check (min_session_seconds between 0 and 86400),
   video_url text not null default '',
   audio_url text not null default '',
+  audio_path text not null default '',
+  audio_name text not null default '',
   updated_at timestamptz not null default now()
 );
 
@@ -122,6 +125,54 @@ $$;
 grant execute on function private.is_editor() to authenticated;
 grant execute on function private.has_content_access() to authenticated;
 
+-- Protege a conta principal e impede que o sistema fique sem editor ativo.
+create unique index if not exists profiles_single_owner_shamatha
+on public.profiles ((is_owner)) where is_owner = true;
+
+create or replace function private.protect_profile_admin_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (select auth.uid()) is null then return new; end if;
+
+  if new.id is distinct from old.id
+     or new.email is distinct from old.email
+     or new.created_at is distinct from old.created_at then
+    raise exception 'Campos de identidade do perfil não podem ser alterados pelo painel.';
+  end if;
+
+  if new.is_owner is distinct from old.is_owner then
+    raise exception 'A conta principal não pode ser alterada pelo painel.';
+  end if;
+
+  if old.is_owner and (new.role <> 'editor' or new.access_granted is not true) then
+    raise exception 'A conta principal deve permanecer como editor ativo.';
+  end if;
+
+  if new.role = 'editor' then new.access_granted := true; end if;
+
+  if old.role = 'editor' and new.role <> 'editor' then
+    if not exists (
+      select 1 from public.profiles p
+      where p.id <> old.id and p.role = 'editor' and p.access_granted = true
+    ) then
+      raise exception 'Mantenha pelo menos um editor ativo.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.protect_profile_admin_fields() from public, anon, authenticated;
+drop trigger if exists protect_profile_admin_fields_shamatha on public.profiles;
+create trigger protect_profile_admin_fields_shamatha
+before update on public.profiles
+for each row execute function private.protect_profile_admin_fields();
+
 -- Conteúdo inicial. A etapa 1 preserva o vídeo e o áudio do protótipo.
 insert into public.stages
 (number, stage_name, unit_name, objective, sessions_required, deadline_days, min_session_seconds, video_url, audio_url)
@@ -214,7 +265,36 @@ to authenticated
 using (user_id = (select auth.uid()) and (select private.has_content_access()))
 with check (user_id = (select auth.uid()) and (select private.has_content_access()));
 
+-- Áudios privados das práticas. Somente editores enviam/removem; alunos liberados podem ouvir.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'shamatha-audio', 'shamatha-audio', false, 104857600,
+  array['audio/mpeg','audio/mp4','audio/x-m4a','audio/aac','audio/ogg','audio/wav','audio/x-wav','audio/webm']::text[]
+)
+on conflict (id) do update set
+  name = excluded.name,
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists shamatha_audio_select on storage.objects;
+create policy shamatha_audio_select on storage.objects for select to authenticated
+using (bucket_id = 'shamatha-audio' and (select private.has_content_access()));
+
+drop policy if exists shamatha_audio_insert_editor on storage.objects;
+create policy shamatha_audio_insert_editor on storage.objects for insert to authenticated
+with check (bucket_id = 'shamatha-audio' and (select private.is_editor()));
+
+drop policy if exists shamatha_audio_update_editor on storage.objects;
+create policy shamatha_audio_update_editor on storage.objects for update to authenticated
+using (bucket_id = 'shamatha-audio' and (select private.is_editor()))
+with check (bucket_id = 'shamatha-audio' and (select private.is_editor()));
+
+drop policy if exists shamatha_audio_delete_editor on storage.objects;
+create policy shamatha_audio_delete_editor on storage.objects for delete to authenticated
+using (bucket_id = 'shamatha-audio' and (select private.is_editor()));
+
 -- PASSO FINAL PARA CRIAR O PRIMEIRO EDITOR
 -- 1. Publique/configure o site, cadastre sua conta normalmente e confirme o e-mail.
 -- 2. Volte ao SQL Editor e execute SOMENTE a linha abaixo com o seu e-mail real:
--- update public.profiles set role = 'editor', access_granted = true where email = lower('SEU_EMAIL_AQUI');
+-- update public.profiles set role = 'editor', access_granted = true, is_owner = true where email = lower('SEU_EMAIL_AQUI');

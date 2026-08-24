@@ -13,6 +13,7 @@ O GitHub Pages hospeda somente HTML/CSS/JavaScript. Supabase fornece autenticaç
 - `editor.html` — painel do editor.
 - `assets/config.js` — URL e Publishable Key do Supabase.
 - `assets/supabase-backend.js` — adaptação da API do protótipo para Supabase.
+- `assets/shamatha-extensions.js` — Storage privado de áudio e gestão de múltiplos editores.
 - `supabase-schema.sql` — tabelas, dados iniciais, trigger de cadastro e políticas RLS.
 - `.nojekyll` — publicação como Static HTML.
 
@@ -49,7 +50,7 @@ No SQL Editor execute, trocando pelo seu e-mail:
 
 ```sql
 update public.profiles
-set role = 'editor', access_granted = true
+set role = 'editor', access_granted = true, is_owner = true
 where email = lower('seu-email@exemplo.com');
 ```
 
@@ -60,7 +61,8 @@ Saia e entre novamente. A conta abrirá o painel `editor.html`.
 O editor pode:
 
 - liberar ou suspender alunos pelo e-mail já cadastrado;
-- definir vídeo e áudio para cada uma das 9 etapas;
+- promover outros usuários cadastrados a editor (e rebaixá-los novamente a aluno);
+- definir vídeo e enviar o arquivo de áudio de cada uma das 9 etapas para o Storage privado;
 - definir sessões mínimas, prazo e duração mínima de prática;
 - salvar o link exato da aula ao vivo;
 - configurar o WhatsApp do professor.
@@ -81,3 +83,7 @@ As páginas e o JavaScript são públicos por natureza no GitHub Pages. A autori
 - aluno liberado lê as etapas/configurações e lê/grava somente o próprio progresso;
 - editor lê alunos e altera permissões, etapas e configurações;
 - nenhuma Secret Key fica no repositório.
+
+## Áudios privados e múltiplos editores
+
+O painel aceita upload de MP3, M4A, AAC, OGG, WAV e WEBM de até 100 MB. Os arquivos ficam no bucket privado `shamatha-audio`; somente editores podem enviar/remover, e alunos liberados recebem URLs assinadas temporárias para reprodução. A conta de editor principal é protegida contra rebaixamento, e o banco impede que o sistema fique sem pelo menos um editor ativo.

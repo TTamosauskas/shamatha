@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Centro Pineal — Editor</title>
   <link rel="stylesheet" href="./assets/site.css">
+  <link rel="stylesheet" href="./assets/editor-v2.css">
 </head>
 <body>
   <main class="shell">
@@ -19,7 +20,7 @@
     <section class="grid">
       <div class="card">
         <div class="section-head">
-          <div><h2>Liberação de acesso</h2><p>O aluno cria a conta primeiro; você libera ou suspende pelo e-mail cadastrado.</p></div>
+          <div><h2>Liberação de acesso</h2><p>O usuário cria a conta primeiro; você libera o conteúdo e pode promover outros usuários a editor.</p></div>
         </div>
         <form id="accessForm" class="toolbar">
           <input id="accessEmail" type="email" placeholder="aluno@exemplo.com" required style="flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px">
@@ -44,12 +45,12 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Usuários cadastrados</h2><p>Contas de aluno e situação de acesso.</p></div>
+        <div><h2>Usuários cadastrados</h2><p>Gerencie acesso ao conteúdo e a função Aluno/Editor. A conta principal permanece protegida.</p></div>
         <span class="badge" id="userCount">0 usuários</span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Acesso</th><th>Ação</th></tr></thead>
+          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Função</th><th>Acesso</th><th>Ação</th></tr></thead>
           <tbody id="usersBody"></tbody>
         </table>
       </div>
@@ -57,7 +58,7 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Conteúdo das 9 etapas</h2><p>Defina vídeo, áudio, objetivo e regras de progresso de cada etapa.</p></div>
+        <div><h2>Conteúdo das 9 etapas</h2><p>Defina vídeo, envie o arquivo de áudio, ajuste o objetivo e as regras de progresso de cada etapa.</p></div>
       </div>
       <div id="stages"></div>
     </section>
@@ -65,6 +66,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./assets/config.js"></script>
 <script src="./assets/supabase-backend.js"></script>
-<script src="./assets/editor.js"></script>
+<script src="./assets/shamatha-extensions.js"></script>
+<script src="./assets/editor-v2.js"></script>
 </body>
 </html>
