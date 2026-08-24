@@ -1,179 +1,6 @@
 (() => {
   'use strict';
 
-  const backend = window.ShamathaBackend;
-  if (!backend || typeof backend.request !== 'function') return;
-
-  const state = { appData:null, progress:null, activeStage:null };
-  const originalRequest = backend.request.bind(backend);
-
-  function stageState(progress, stage) {
-    return progress?.stages?.[stage] || progress?.stages?.[String(stage)] || null;
-  }
-
-  function stageConfig(stage) {
-    return state.appData?.stages?.[Number(stage) - 1] || null;
-  }
-
-  function localDateKey(value) {
-    const d = value instanceof Date ? value : new Date(value);
-    return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
-  }
-
-  function sessionTime(session) {
-    for (const value of [session?.startedAt, session?.savedAt, session?.endedAt]) {
-      const numeric = Number(value);
-      if (Number.isFinite(numeric) && numeric > 0) return numeric;
-      const parsed = new Date(value).getTime();
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
-    return 0;
-  }
-
-  function inWindow(session, stage) {
-    const cfg = stageConfig(stage);
-    if (!cfg) return false;
-    const days = Math.max(1, Number(cfg.deadlineDays || 1));
-    const start = new Date();
-    start.setHours(0,0,0,0);
-    start.setDate(start.getDate() - (days - 1));
-    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(session?.dateKey || ''))
-      ? session.dateKey
-      : (sessionTime(session) ? localDateKey(sessionTime(session)) : '');
-    return Boolean(key && key >= localDateKey(start));
-  }
-
-  function countedCount(stage) {
-    const st = stageState(state.progress, stage);
-    const cfg = stageConfig(stage);
-    if (!st || !cfg) return 0;
-    return Math.min(
-      Number(cfg.sessionsRequired || 0),
-      (st.sessions || []).filter(session => session.countedForProgress && inWindow(session, stage)).length
-    );
-  }
-
-  function markNewestFreeSession(progress) {
-    const now = Date.now();
-    for (const st of Object.values(progress?.stages || {})) {
-      for (const session of st?.sessions || []) {
-        const savedAt = Number(session?.savedAt || 0);
-        if (session?.countedForProgress === false && session?.freeSession !== true && savedAt > 0 && Math.abs(now - savedAt) <= 60000) {
-          session.freeSession = true;
-        }
-      }
-    }
-    return progress;
-  }
-
-  backend.request = async function wrappedRequest(path, options = {}) {
-    let nextOptions = options;
-    if (path === '/api/progress' && String(options.method || '').toUpperCase() === 'PUT' && typeof options.body === 'string') {
-      try {
-        const payload = JSON.parse(options.body);
-        if (payload?.progress) {
-          payload.progress = markNewestFreeSession(payload.progress);
-          state.progress = payload.progress;
-          nextOptions = { ...options, body:JSON.stringify(payload) };
-        }
-      } catch (_) {}
-    }
-    const result = await originalRequest(path, nextOptions);
-    if (path === '/api/app-data' && result) {
-      state.appData = result;
-      state.progress = result.progress;
-    }
-    return result;
-  };
-
-  function parseStageFromToolbar() {
-    const text = String(document.getElementById('toolbarStage')?.textContent || '').trim();
-    const match = text.match(/^Etapa\s+(\d+)/i);
-    return match ? Number(match[1]) : null;
-  }
-
-  function parseStageFromSessionLabel() {
-    const text = String(document.querySelector('#unitScroll .session-count')?.textContent || '').trim();
-    const match = text.match(/Sessão\s+\d+\s*[·•]\s*etapa\s+(\d+)/i);
-    return match ? Number(match[1]) : null;
-  }
-
-  function syncPracticeHeader() {
-    const toolbar = document.getElementById('toolbarStage');
-    if (!toolbar) return;
-    const stage = parseStageFromSessionLabel() || parseStageFromToolbar() || state.activeStage;
-    if (!stage) return;
-    state.activeStage = stage;
-    const cfg = stageConfig(stage);
-    if (!cfg) return;
-    const desired = `Etapa ${stage} — ${cfg.unitName}`;
-    if (toolbar.textContent !== desired) toolbar.textContent = desired;
-  }
-
-  function freeSessionCount(stage) {
-    const st = stageState(state.progress, stage);
-    return (st?.sessions || []).filter(session => session?.freeSession === true && inWindow(session, stage)).length;
-  }
-
-  function syncProgressMarks(required) {
-    const line = document.querySelector('#saveArea .progress-line');
-    const elephant = line?.querySelector('.progress-elephant');
-    if (!line || !elephant || !Number.isFinite(required) || required < 1) return;
-    line.querySelectorAll('.progress-mark').forEach(mark => mark.remove());
-    for (let index = 0; index <= required; index += 1) {
-      const mark = document.createElement('span');
-      mark.className = 'progress-mark';
-      mark.style.left = `${(index / required) * 100}%`;
-      line.insertBefore(mark, elephant);
-    }
-  }
-
-  function markSavedLayout() {
-    const reflection = document.querySelector('#unitScroll .reflection');
-    const saveArea = document.getElementById('saveArea');
-    if (!reflection || !saveArea || !saveArea.children.length) return false;
-    reflection.classList.add('session-saved');
-    return true;
-  }
-
-  function syncProgressFacts() {
-    const reflection = document.querySelector('#unitScroll .reflection');
-    const saveArea = document.getElementById('saveArea');
-    const firstFact = saveArea?.querySelector('.progress-facts > span:first-child');
-    const secondFact = saveArea?.querySelector('.progress-facts > span:nth-child(2)');
-    if (!reflection || !saveArea || !saveArea.children.length || !firstFact) return;
-    reflection.classList.add('session-saved');
-
-    const stage = state.activeStage || parseStageFromToolbar();
-    const cfg = stageConfig(stage);
-    const st = stageState(state.progress, stage);
-    if (!stage || !cfg) return;
-
-    const count = countedCount(stage);
-    const required = Math.max(1, Number(cfg.sessionsRequired || 1));
-    const days = Number(cfg.deadlineDays || 0);
-    const free = freeSessionCount(stage);
-    const remaining = Math.max(0, required - count);
-    const base = `<strong>${count} de ${required}</strong> sessões válidas nos últimos ${days} dias`;
-
-    if (free > 0) {
-      const freeLabel = free === 1 ? 'sessão livre' : 'sessões livres';
-      firstFact.innerHTML = `${base} e <strong>${free}</strong> ${freeLabel}.`;
-    } else {
-      firstFact.innerHTML = `${base}.`;
-    }
-
-    if (secondFact) {
-      if (st?.completedAt || remaining === 0) {
-        secondFact.textContent = `Meta cumprida nos últimos ${days} dias. Etapa concluída.`;
-      } else {
-        secondFact.textContent = `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão diária' : 'sessões diárias'} para a meta.`;
-      }
-    }
-
-    syncProgressMarks(required);
-  }
-
   function showPresenceError(range) {
     const field = range?.closest('.field');
     if (!field) return;
@@ -188,13 +15,72 @@
       error.textContent = 'Escolha um valor em Presença percebida antes de salvar.';
       field.appendChild(error);
     }
-    range.focus({ preventScroll:false });
+    try { range.focus({ preventScroll:false }); }
+    catch (_) { range.focus(); }
   }
 
   function clearPresenceError(range) {
     const field = range?.closest('.field');
     field?.classList.remove('presence-invalid');
     field?.querySelector('.presence-error')?.remove();
+  }
+
+  function syncProgressMarks(required) {
+    const line = document.querySelector('#saveArea .progress-line');
+    const elephant = line?.querySelector('.progress-elephant');
+    if (!line || !elephant || !Number.isFinite(required) || required < 1) return;
+
+    const expected = required + 1;
+    const marks = [...line.querySelectorAll('.progress-mark')];
+    const alreadyCorrect = marks.length === expected && marks.every((mark, index) => {
+      const expectedLeft = `${(index / required) * 100}%`;
+      return mark.style.left === expectedLeft;
+    });
+    if (alreadyCorrect) return;
+
+    marks.forEach(mark => mark.remove());
+    for (let index = 0; index <= required; index += 1) {
+      const mark = document.createElement('span');
+      mark.className = 'progress-mark';
+      mark.style.left = `${(index / required) * 100}%`;
+      line.insertBefore(mark, elephant);
+    }
+  }
+
+  function syncProgressFacts() {
+    const saveArea = document.getElementById('saveArea');
+    const firstFact = saveArea?.querySelector('.progress-facts > span:first-child');
+    const secondFact = saveArea?.querySelector('.progress-facts > span:nth-child(2)');
+    if (!firstFact) return;
+
+    const text = String(firstFact.textContent || '').replace(/\s+/g, ' ').trim();
+    const match = text.match(/(\d+)\s+de\s+(\d+).*?últimos\s+(\d+)\s+dias/i);
+    if (!match) return;
+
+    const count = Number(match[1]);
+    const required = Math.max(1, Number(match[2]));
+    const days = Number(match[3]);
+    const remaining = Math.max(0, required - count);
+
+    if (secondFact && remaining > 0) {
+      secondFact.textContent = `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão diária' : 'sessões diárias'} para a meta.`;
+    }
+    if (secondFact && remaining === 0 && !/Etapa concluída/i.test(secondFact.textContent || '')) {
+      secondFact.textContent = `Meta cumprida nos últimos ${days} dias. Etapa concluída.`;
+    }
+
+    syncProgressMarks(required);
+  }
+
+  function applySavedLayout() {
+    const reflection = document.querySelector('#unitScroll .reflection');
+    const saveArea = document.getElementById('saveArea');
+    if (!reflection || !saveArea || !saveArea.children.length) return false;
+    reflection.classList.add('session-saved');
+    syncProgressFacts();
+    const scroll = document.getElementById('unitScroll');
+    if (scroll) scroll.scrollTop = 0;
+    return true;
   }
 
   function closePracticeWindow() {
@@ -206,8 +92,10 @@
     if (scroll) scroll.scrollTop = 0;
   }
 
+  // Validação antes do handler principal de salvamento.
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
+
     if (target?.closest('#saveSession')) {
       const range = document.getElementById('lucidity');
       if (range && range.dataset.chosen !== 'true') {
@@ -220,37 +108,23 @@
       clearPresenceError(range);
     }
 
-    if (target?.closest('#shareWhatsapp')) {
-      closePracticeWindow();
-    }
+    // O link mantém sua navegação externa normal; apenas fechamos a atividade atual.
+    if (target?.closest('#shareWhatsapp')) closePracticeWindow();
   }, true);
 
+  // O app principal monta o resultado de forma síncrona no clique; depois disso
+  // aplicamos o estado visual pós-salvamento sem MutationObserver.
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target?.closest('#saveSession')) return;
-    queueMicrotask(() => {
-      markSavedLayout();
-      syncProgressFacts();
-    });
-    requestAnimationFrame(() => {
-      markSavedLayout();
-      syncProgressFacts();
-    });
+    queueMicrotask(applySavedLayout);
+    requestAnimationFrame(applySavedLayout);
   });
 
   document.addEventListener('input', event => {
     const target = event.target;
-    if (target instanceof HTMLInputElement && target.id === 'lucidity') clearPresenceError(target);
+    if (target instanceof HTMLInputElement && target.id === 'lucidity') {
+      clearPresenceError(target);
+    }
   });
-
-  const scroll = document.getElementById('unitScroll');
-  const toolbar = document.getElementById('toolbarStage');
-  const sync = () => {
-    syncPracticeHeader();
-    markSavedLayout();
-    syncProgressFacts();
-  };
-  if (scroll) new MutationObserver(sync).observe(scroll, { childList:true, subtree:true });
-  if (toolbar) new MutationObserver(syncPracticeHeader).observe(toolbar, { childList:true, subtree:true, characterData:true });
-  sync();
 })();
