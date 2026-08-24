@@ -13,3 +13,24 @@
   .account-pill, .account-link { min-height:30px; padding:0 8px; font-size:10px; }
 }
 .push-permission-card{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;width:min(92vw,520px);padding:16px;border:1px solid rgba(15,23,42,.12);border-radius:18px;background:rgba(248,250,252,.97);box-shadow:0 20px 60px rgba(15,23,42,.22);color:#0f172a;display:grid;gap:12px}.push-permission-card strong{font:600 18px/1.2 Georgia,serif}.push-permission-card p{margin:5px 0 0;color:#475569;font-size:13px;line-height:1.45}.push-permission-actions{display:grid;grid-template-columns:1fr auto;gap:8px}.push-permission-actions .primary{min-height:42px}.push-permission-actions .ghost{min-height:42px}.push-permission-status{font-size:12px;color:#334155}.push-permission-status.good{color:#166534}.push-permission-status.bad{color:#be123c}.live-class-badge:not([href]){cursor:default;opacity:.88}@media(max-width:520px){.push-permission-actions{grid-template-columns:1fr}.push-permission-actions .ghost{width:100%}}
+
+/* Registro de prática: cabeçalho, validação e pós-salvamento. */
+#accountEmail,#editorLink{display:none!important;}
+.brand-meta .account-actions{display:flex;}
+.unit-toolbar-minimal{justify-content:space-between!important;}
+.unit-toolbar-title.hidden{display:block!important;min-width:0;flex:1;}
+.unit-toolbar-title small{display:block!important;color:#d8d4cb!important;font-size:13px!important;letter-spacing:.02em!important;text-transform:none!important;font-weight:650;}
+.unit-toolbar-title strong{display:none!important;}
+.prep .session-count{display:none!important;}
+input[type="range"].empty-range{opacity:1!important;}
+input[type="range"].empty-range::-webkit-slider-thumb{opacity:1!important;}
+input[type="range"].empty-range::-moz-range-thumb{opacity:1!important;}
+.field.presence-invalid .field-label span:first-child{color:#ff6b6b;}
+.field.presence-invalid .range-shell{border-radius:12px;box-shadow:0 0 0 1px rgba(255,80,80,.55);padding-left:8px;padding-right:8px;}
+.field.presence-invalid input[type="range"]{accent-color:#ef4444;}
+.presence-error{margin-top:8px;color:#ff6b6b;font-size:12px;font-weight:700;line-height:1.4;}
+.reflection.session-saved>.elapsed-card,
+.reflection.session-saved>.field,
+.reflection.session-saved>.validation-note,
+.reflection.session-saved>.after-actions{display:none!important;}
+.reflection.session-saved>#saveArea{margin-top:0;}
