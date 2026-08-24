@@ -1,13 +1,13 @@
-const CACHE = 'shamatha-shell-v4';
+const CACHE = 'shamatha-shell-v5';
 const SHELL = [
   './',
   './index.html',
-  './app.html?v=20260824-1415',
-  './assets/app.css?v=20260824-1415',
-  './assets/app-cleanup.css?v=20260824-1415',
-  './assets/practice-flow.css?v=20260824-1415',
-  './assets/practice-ux.js?v=20260824-1415',
-  './assets/pwa.js?v=20260824-1415'
+  './app.html?v=20260824-1500',
+  './assets/app.css?v=20260824-1500',
+  './assets/app-cleanup.css?v=20260824-1500',
+  './assets/practice-flow.css?v=20260824-1500',
+  './assets/practice-ux.js?v=20260824-1500',
+  './assets/pwa.js?v=20260824-1500'
 ];
 
 self.addEventListener('install', event => {
@@ -20,6 +20,25 @@ self.addEventListener('activate', event => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
     await self.clients.claim();
+  })());
+});
+
+// Navegações sempre tentam a rede primeiro. Isso evita que uma PWA instalada
+// continue abrindo um app.html antigo depois de uma atualização.
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET' || request.mode !== 'navigate') return;
+
+  event.respondWith((async () => {
+    try {
+      return await fetch(request, { cache:'no-store' });
+    } catch (_) {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/app.html') || url.pathname.endsWith('/shamatha/')) {
+        return (await caches.match('./app.html?v=20260824-1500')) || Response.error();
+      }
+      return (await caches.match(request)) || (await caches.match('./index.html')) || Response.error();
+    }
   })());
 });
 
