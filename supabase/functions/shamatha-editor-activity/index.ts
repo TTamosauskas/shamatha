@@ -58,14 +58,37 @@ async function requireEditor(req: Request) {
   }
 }
 
+async function authUsersByEmail() {
+  const confirmedByEmail: Record<string, boolean> = {};
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const users = data?.users || [];
+    for (const user of users) {
+      const email = String(user.email || '').trim().toLowerCase();
+      if (email) confirmedByEmail[email] = Boolean(user.email_confirmed_at);
+    }
+    if (users.length < perPage) break;
+    page += 1;
+  }
+  return confirmedByEmail;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Método inválido.' }, 405);
   try {
     await requireEditor(req);
-    const [{ data: profiles, error: profilesError }, { data: rows, error: progressError }] = await Promise.all([
+    const [
+      { data: profiles, error: profilesError },
+      { data: rows, error: progressError },
+      confirmedByEmail
+    ] = await Promise.all([
       admin.from('profiles').select('id,email'),
-      admin.from('progress').select('user_id,data')
+      admin.from('progress').select('user_id,data'),
+      authUsersByEmail()
     ]);
     if (profilesError) throw profilesError;
     if (progressError) throw progressError;
@@ -77,7 +100,7 @@ Deno.serve(async (req: Request) => {
       const last = latestSession(row.data);
       if (email && last) lastSessionByEmail[email] = last;
     }
-    return json({ lastSessionByEmail });
+    return json({ lastSessionByEmail, confirmedByEmail });
   } catch (error: any) {
     console.error(error);
     return json({ error: String(error?.message || 'Falha ao consultar atividade.') }, Number(error?.status || 500));
