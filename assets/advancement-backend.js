@@ -2,62 +2,68 @@
   'use strict';
 
   const base = window.ShamathaBackend;
-  if (!base?.request || !base?.getClient) return;
-  const sb = base.getClient();
+  if (!base?.request) return;
 
-  function normalizeRequirement(value) {
-    return value === 'deadline' ? 'deadline' : 'sessions';
+  let appSnapshot = null;
+
+  function forceDeadline(stages) {
+    if (!Array.isArray(stages)) return stages;
+    return stages.map(stage => ({ ...stage, advancementRequirement:'deadline' }));
   }
 
-  function parseBody(options = {}) {
-    if (!options.body) return {};
-    if (typeof options.body === 'object') return options.body;
-    try { return JSON.parse(options.body); } catch (_) { return {}; }
-  }
+  function deadlineCopy() {
+    const progress = appSnapshot?.progress;
+    if (!progress) return;
+    const stageNumber = Number(progress.currentStage || 1);
+    const cfg = appSnapshot.stages?.[stageNumber - 1];
+    const st = progress.stages?.[stageNumber] || progress.stages?.[String(stageNumber)];
+    if (!cfg || !st || st.completedAt || !st.cycleStartedAt) return;
 
-  async function attachRequirements(result) {
-    if (!Array.isArray(result?.stages) || !result.stages.length) return result;
-    const numbers = result.stages.map(stage => Number(stage.number)).filter(Boolean);
-    const { data, error } = await sb.from('stages')
-      .select('number,advancement_requirement')
-      .in('number', numbers);
-    if (error) throw new Error(error.message || 'Falha ao carregar as regras de avanço.');
-    const byNumber = new Map((data || []).map(row => [Number(row.number), normalizeRequirement(row.advancement_requirement)]));
-    result.stages = result.stages.map(stage => ({
-      ...stage,
-      advancementRequirement: byNumber.get(Number(stage.number)) || 'sessions'
-    }));
-    return result;
-  }
+    const required = Math.max(1, Number(cfg.sessionsRequired || 1));
+    const count = Math.min(required, (st.sessions || []).filter(session => session?.countedForProgress).length);
+    if (count < required) return;
 
-  async function saveRequirement(number, options, result) {
-    const body = parseBody(options);
-    const requirement = normalizeRequirement(body.advancementRequirement);
-    const { data, error } = await sb.from('stages')
-      .update({ advancement_requirement: requirement, updated_at: new Date().toISOString() })
-      .eq('number', number)
-      .select('advancement_requirement')
-      .single();
-    if (error) throw new Error(error.message || 'Falha ao salvar o requisito de avanço.');
-    if (result?.stage) result.stage.advancementRequirement = normalizeRequirement(data?.advancement_requirement);
-    return result;
+    const end = new Date(st.cycleStartedAt).getTime() + Number(cfg.deadlineDays || 1) * 86400000;
+    const daysLeft = Math.max(0, Math.ceil((end - Date.now()) / 86400000));
+    const dayLabel = daysLeft === 1 ? 'dia' : 'dias';
+
+    const mini = document.getElementById('miniProgress');
+    const miniText = `${count}/${required} · ainda ${daysLeft} ${dayLabel} para praticar`;
+    if (mini && mini.textContent !== miniText) mini.textContent = miniText;
+
+    document.querySelectorAll('.progress-facts span:last-child').forEach(node => {
+      const text = String(node.textContent || '');
+      if (!/Meta de sessões cumprida|Meta cumprida|avança ao fim do prazo/i.test(text)) return;
+      const desired = `Meta cumprida. Você ainda tem ${daysLeft} ${dayLabel} para praticar.`;
+      if (node.textContent !== desired) node.textContent = desired;
+    });
   }
 
   async function request(path, options = {}) {
     const method = String(options.method || 'GET').toUpperCase();
 
     if ((path === '/api/app-data' || path === '/api/editor/data') && method === 'GET') {
-      return attachRequirements(await base.request(path, options));
+      const result = await base.request(path, options);
+      result.stages = forceDeadline(result.stages);
+      if (path === '/api/app-data') appSnapshot = result;
+      queueMicrotask(deadlineCopy);
+      return result;
     }
 
     const stageMatch = path.match(/^\/api\/editor\/stages\/(\d+)$/);
     if (stageMatch && method === 'PUT') {
       const result = await base.request(path, options);
-      return saveRequirement(Number(stageMatch[1]), options, result);
+      if (result?.stage) result.stage.advancementRequirement = 'deadline';
+      return result;
     }
 
     return base.request(path, options);
   }
 
   window.ShamathaBackend = Object.freeze({ ...base, request });
+
+  if (document.body) {
+    new MutationObserver(deadlineCopy).observe(document.body, { childList:true, subtree:true, characterData:true });
+    setInterval(deadlineCopy, 30000);
+  }
 })();
