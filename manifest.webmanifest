@@ -1,0 +1,13 @@
+{
+  "name": "Centro Pineal — Shamatha",
+  "short_name": "Shamatha",
+  "description": "Caminho de meditação Shamatha do Centro Pineal.",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eaf7fd",
+  "theme_color": "#eaf7fd",
+  "icons": [
+    { "src": "./app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

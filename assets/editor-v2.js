@@ -1,5 +1,7 @@
 const $ = id => document.getElementById(id);
 let editorData = null;
+const GLOBAL_MIN_SESSION_SECONDS = 300;
+const CURITIBA_TZ = 'America/Sao_Paulo';
 
 async function api(path, options = {}) {
   try {
@@ -22,7 +24,41 @@ function esc(value) {
 }
 
 function formatDate(ts) {
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(ts));
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle:'short', timeStyle:'short', timeZone:CURITIBA_TZ }).format(new Date(ts));
+}
+
+function formatCuritiba(ts) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: CURITIBA_TZ,
+    weekday:'short', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+  }).format(new Date(ts));
+}
+
+function zonedParts(date, timeZone = CURITIBA_TZ) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit',
+    hourCycle:'h23'
+  }).formatToParts(date);
+  return Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
+}
+
+function curitibaInputValue(date) {
+  const p = zonedParts(date);
+  return `${p.year}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}T${String(p.hour).padStart(2,'0')}:${String(p.minute).padStart(2,'0')}`;
+}
+
+function curitibaLocalToIso(value) {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!m) throw new Error('Informe data e hora válidas.');
+  const wanted = Date.UTC(Number(m[1]), Number(m[2])-1, Number(m[3]), Number(m[4]), Number(m[5]), 0);
+  let guess = wanted;
+  for (let i = 0; i < 3; i += 1) {
+    const p = zonedParts(new Date(guess));
+    const seen = Date.UTC(p.year, p.month-1, p.day, p.hour, p.minute, p.second || 0);
+    guess += wanted - seen;
+  }
+  return new Date(guess).toISOString();
 }
 
 function updateUser(user) {
@@ -31,53 +67,93 @@ function updateUser(user) {
   else editorData.users.push(user);
 }
 
+function statusLabel(status) {
+  return status === 'approved' ? 'Aprovado' : status === 'suspended' ? 'Suspenso' : 'Pendente';
+}
+
 function renderUsers() {
   const users = editorData.users || [];
   $('userCount').textContent = `${users.length} ${users.length === 1 ? 'usuário' : 'usuários'}`;
   $('usersBody').innerHTML = users.length ? users.map(user => {
     const isEditor = user.role === 'editor';
-    const roleLabel = user.isOwner ? '<span class="badge owner">Editor principal</span>' : `
-      <select class="user-role role-select" data-email="${esc(user.email)}" aria-label="Função de ${esc(user.email)}">
-        <option value="student" ${isEditor ? '' : 'selected'}>Aluno</option>
-        <option value="editor" ${isEditor ? 'selected' : ''}>Editor</option>
-      </select>`;
-    const accessLabel = isEditor ? '<span class="badge good">Editor ativo</span>' : `<span class="badge ${user.accessGranted ? 'good' : 'pending'}">${user.accessGranted ? 'Liberado' : 'Aguardando'}</span>`;
-    const accessAction = isEditor
-      ? '<span class="muted">Acesso permanente</span>'
-      : `<button class="btn ${user.accessGranted ? 'danger' : 'primary'} small user-access" data-email="${esc(user.email)}" data-granted="${user.accessGranted ? '0' : '1'}">${user.accessGranted ? 'Suspender' : 'Liberar'}</button>`;
-    return `
-      <tr>
-        <td>${esc(user.email)}</td>
-        <td>${esc(formatDate(user.createdAt))}</td>
-        <td>${roleLabel}</td>
-        <td>${accessLabel}</td>
-        <td>${accessAction}</td>
-      </tr>`;
-  }).join('') : '<tr><td colspan="5" class="muted">Ainda não há usuários cadastrados.</td></tr>';
+    const roleControl = user.isOwner
+      ? '<span class="badge owner">Editor principal</span>'
+      : `<select class="user-role role-select" data-email="${esc(user.email)}" aria-label="Função de ${esc(user.email)}">
+          <option value="student" ${isEditor ? '' : 'selected'}>Aluno</option>
+          <option value="editor" ${isEditor ? 'selected' : ''}>Editor</option>
+        </select>`;
 
-  document.querySelectorAll('.user-access').forEach(btn => btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    try {
-      await setAccess(btn.dataset.email, btn.dataset.granted === '1');
-    } catch (error) {
-      setStatus('accessStatus', error.message, 'bad');
-    } finally { btn.disabled = false; }
-  }));
+    const stateControl = isEditor || user.isOwner
+      ? `<span class="badge good">Aprovado</span>`
+      : `<select class="user-status role-select status-select" data-email="${esc(user.email)}" aria-label="Estado de ${esc(user.email)}">
+          <option value="pending" ${user.accessStatus === 'pending' ? 'selected' : ''}>Pendente</option>
+          <option value="approved" ${user.accessStatus === 'approved' ? 'selected' : ''}>Aprovado</option>
+          <option value="suspended" ${user.accessStatus === 'suspended' ? 'selected' : ''}>Suspenso</option>
+        </select>`;
+
+    return `<tr>
+      <td>${esc(user.email)}</td>
+      <td>${esc(formatDate(user.createdAt))}</td>
+      <td>${roleControl}</td>
+      <td>${stateControl}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" class="muted">Ainda não há usuários cadastrados.</td></tr>';
 
   document.querySelectorAll('.user-role').forEach(select => select.addEventListener('change', async () => {
     select.disabled = true;
     try {
       const data = await api('/api/editor/role', {
-        method:'PUT',
-        body:JSON.stringify({ email:select.dataset.email, role:select.value })
+        method:'PUT', body:JSON.stringify({ email:select.dataset.email, role:select.value })
       });
       updateUser(data.user);
       renderUsers();
-      setStatus('accessStatus', `${data.user.email}: função alterada para ${data.user.role === 'editor' ? 'editor' : 'aluno'}.`);
+      setStatus('accessStatus', `${data.user.email}: função alterada para ${data.user.role === 'editor' ? 'Editor' : 'Aluno'}.`);
       if (editorData.currentUser?.id === data.user.id && data.user.role !== 'editor') location.href = './app.html';
     } catch (error) {
       renderUsers();
       setStatus('accessStatus', error.message, 'bad');
+    }
+  }));
+
+  document.querySelectorAll('.user-status').forEach(select => select.addEventListener('change', async () => {
+    select.disabled = true;
+    try {
+      const data = await api('/api/editor/status', {
+        method:'PUT', body:JSON.stringify({ email:select.dataset.email, status:select.value })
+      });
+      updateUser(data.user);
+      renderUsers();
+      setStatus('accessStatus', `${data.user.email}: estado alterado para ${statusLabel(data.user.accessStatus)}.`);
+    } catch (error) {
+      renderUsers();
+      setStatus('accessStatus', error.message, 'bad');
+    }
+  }));
+}
+
+function renderLiveClasses() {
+  const rows = (editorData.liveClasses || []).filter(item => item.status !== 'ended');
+  if (!rows.length) {
+    $('liveClassList').innerHTML = '<p class="muted live-empty">Nenhuma aula futura agendada.</p>';
+    return;
+  }
+  $('liveClassList').innerHTML = rows.map(item => `
+    <div class="live-class-row ${item.status === 'cancelled' ? 'is-cancelled' : ''}">
+      <div><strong>${esc(formatCuritiba(item.startsAt))}</strong><small>${item.status === 'cancelled' ? 'Cancelada' : 'Agendada · horário de Curitiba'}</small></div>
+      ${item.status === 'scheduled' ? `<button class="btn danger small cancel-live" type="button" data-id="${esc(item.id)}">Cancelar</button>` : '<span class="badge bad">Cancelada</span>'}
+    </div>`).join('');
+
+  document.querySelectorAll('.cancel-live').forEach(btn => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const data = await api('/api/editor/live-class', { method:'DELETE', body:JSON.stringify({ id:btn.dataset.id }) });
+      const idx = editorData.liveClasses.findIndex(item => item.id === data.liveClass.id);
+      if (idx >= 0) editorData.liveClasses[idx] = data.liveClass;
+      renderLiveClasses();
+      setStatus('liveClassStatus', 'Aula cancelada. Usuários com notificações ativas receberam o aviso.');
+    } catch (error) {
+      btn.disabled = false;
+      setStatus('liveClassStatus', error.message, 'bad');
     }
   }));
 }
@@ -88,8 +164,7 @@ function audioBlock(stage) {
     ? `<strong>${esc(stage.audioName)}</strong>`
     : hasAudio ? '<strong>Áudio atual configurado</strong>' : '<span class="muted">Nenhum áudio enviado.</span>';
   const player = stage.audioUrl ? `<audio class="audio-preview" controls preload="metadata" src="${esc(stage.audioUrl)}"></audio>` : '';
-  return `
-    <div class="field audio-field">
+  return `<div class="field audio-field">
       <label>Áudio da prática</label>
       <div class="audio-current">${current}${player}</div>
       <div class="audio-upload-row">
@@ -106,32 +181,35 @@ function renderStages(openStage = null) {
     <details ${(openStage === stage.number || (!openStage && stage.number === 1)) ? 'open' : ''} data-stage-details="${stage.number}">
       <summary>Etapa ${stage.number} — ${esc(stage.unitName)}</summary>
       <form class="details-body stage-form" data-stage="${stage.number}">
-        <div class="three">
-          <div class="field"><label>Nome da etapa</label><input name="stageName" value="${esc(stage.stageName)}" maxlength="120" required></div>
-          <div class="field"><label>Nome da unidade</label><input name="unitName" value="${esc(stage.unitName)}" maxlength="160" required></div>
+        <div class="field"><label>Nome da unidade</label><input name="unitName" value="${esc(stage.unitName)}" maxlength="160" required></div>
+        <div class="editor-rule-grid">
           <div class="field"><label>Sessões necessárias</label><input name="sessionsRequired" type="number" min="1" max="30" value="${stage.sessionsRequired}" required></div>
+          <div class="field"><label>Prazo do ciclo (dias)</label><input name="deadlineDays" type="number" min="1" max="365" value="${stage.deadlineDays}" required></div>
         </div>
         <div class="field"><label>Objetivo / apresentação</label><textarea name="objective" maxlength="1200">${esc(stage.objective)}</textarea></div>
         <div class="field"><label>URL do vídeo</label><input name="videoUrl" type="url" value="${esc(stage.videoUrl)}" placeholder="https://www.youtube.com/watch?v=... ou URL de MP4"></div>
         ${audioBlock(stage)}
-        <div class="three">
-          <div class="field"><label>Prazo do ciclo (dias)</label><input name="deadlineDays" type="number" min="1" max="365" value="${stage.deadlineDays}" required></div>
-          <div class="field"><label>Tempo mínimo válido (segundos)</label><input name="minSessionSeconds" type="number" min="0" max="86400" value="${stage.minSessionSeconds}" required></div>
-          <div class="field"><label>&nbsp;</label><button class="btn primary" type="submit">Salvar etapa ${stage.number}</button></div>
-        </div>
+        <div class="stage-save-row"><button class="btn primary" type="submit">Salvar etapa ${stage.number}</button></div>
         <div class="status hidden stage-status"></div>
       </form>
     </details>`).join('');
+
+  document.querySelectorAll('[data-stage-details]').forEach(details => {
+    details.addEventListener('toggle', () => {
+      if (!details.open) return;
+      document.querySelectorAll('[data-stage-details]').forEach(other => { if (other !== details) other.open = false; });
+    });
+  });
 
   document.querySelectorAll('.stage-form').forEach(form => {
     const number = Number(form.dataset.stage);
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      const fd = new FormData(form);
-      const payload = Object.fromEntries(fd.entries());
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.stageName = editorData.stages[number - 1]?.stageName || '';
       payload.sessionsRequired = Number(payload.sessionsRequired);
       payload.deadlineDays = Number(payload.deadlineDays);
-      payload.minSessionSeconds = Number(payload.minSessionSeconds);
+      payload.minSessionSeconds = GLOBAL_MIN_SESSION_SECONDS;
       const status = form.querySelector('.stage-status');
       try {
         const data = await api(`/api/editor/stages/${number}`, { method:'PUT', body:JSON.stringify(payload) });
@@ -196,32 +274,65 @@ function renderStages(openStage = null) {
   });
 }
 
-async function setAccess(email, accessGranted) {
-  const data = await api('/api/editor/access', { method:'PUT', body:JSON.stringify({ email, accessGranted }) });
-  updateUser(data.user);
-  renderUsers();
-  setStatus('accessStatus', `${data.user.email}: acesso ${data.user.accessGranted ? 'liberado' : 'suspenso'}.`);
-}
-
-$('accessForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  try { await setAccess($('accessEmail').value, true); }
-  catch (error) { setStatus('accessStatus', error.message, 'bad'); }
+$('inviteRole').addEventListener('change', () => {
+  const editor = $('inviteRole').value === 'editor';
+  $('inviteStatus').value = editor ? 'approved' : $('inviteStatus').value;
+  $('inviteStatus').disabled = editor;
 });
 
-$('revokeByEmail').addEventListener('click', async () => {
-  try { await setAccess($('accessEmail').value, false); }
-  catch (error) { setStatus('accessStatus', error.message, 'bad'); }
+$('inviteForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const data = await api('/api/editor/invite', {
+      method:'POST',
+      body:JSON.stringify({ email:$('inviteEmail').value, status:$('inviteStatus').value, role:$('inviteRole').value })
+    });
+    updateUser(data.user);
+    renderUsers();
+    setStatus('accessStatus', data.invited
+      ? `Convite enviado para ${data.user.email}. Estado: ${statusLabel(data.user.accessStatus)}.`
+      : `${data.user.email} já existia e foi atualizado para ${statusLabel(data.user.accessStatus)}.`);
+    $('inviteEmail').value = '';
+  } catch (error) {
+    setStatus('accessStatus', error.message, 'bad');
+  } finally { button.disabled = false; }
+});
+
+$('liveClassForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const startsAt = curitibaLocalToIso($('liveClassAt').value);
+    const data = await api('/api/editor/live-class', {
+      method:'POST', body:JSON.stringify({ url:$('liveClassUrl').value, startsAt })
+    });
+    editorData.liveClasses.push(data.liveClass);
+    editorData.liveClasses.sort((a,b) => new Date(a.startsAt) - new Date(b.startsAt));
+    renderLiveClasses();
+    const sent = Number(data.push?.sent || 0);
+    setStatus('liveClassStatus', `Aula agendada para ${formatCuritiba(data.liveClass.startsAt)}. ${sent ? `${sent} notificação(ões) enviada(s).` : 'O aviso será entregue aos usuários que ativarem notificações.'}`);
+    $('liveClassUrl').value = '';
+    const next = new Date(Date.now() + 60 * 60 * 1000);
+    next.setMinutes(Math.ceil(next.getMinutes()/15)*15, 0, 0);
+    $('liveClassAt').value = curitibaInputValue(next);
+  } catch (error) {
+    setStatus('liveClassStatus', error.message, 'bad');
+  } finally { button.disabled = false; }
 });
 
 $('settingsForm').addEventListener('submit', async event => {
   event.preventDefault();
   try {
-    const data = await api('/api/editor/settings', { method:'PUT', body:JSON.stringify({ liveClassUrl:$('liveClassUrl').value, whatsappPhone:$('whatsappPhone').value }) });
+    const data = await api('/api/editor/settings', {
+      method:'PUT',
+      body:JSON.stringify({ liveClassUrl:editorData.settings.liveClassUrl || '', whatsappPhone:$('whatsappPhone').value })
+    });
     editorData.settings = data.settings;
-    $('liveClassUrl').value = data.settings.liveClassUrl || '';
     $('whatsappPhone').value = data.settings.whatsappPhone || '';
-    setStatus('settingsStatus', 'Configurações salvas. O botão “Ao Vivo” passa a usar esse link exato.');
+    setStatus('settingsStatus', 'WhatsApp salvo.');
   } catch (error) { setStatus('settingsStatus', error.message, 'bad'); }
 });
 
@@ -233,9 +344,12 @@ $('logout').addEventListener('click', async () => {
 (async () => {
   try {
     editorData = await api('/api/editor/data');
-    $('liveClassUrl').value = editorData.settings.liveClassUrl || '';
     $('whatsappPhone').value = editorData.settings.whatsappPhone || '';
+    const next = new Date(Date.now() + 60 * 60 * 1000);
+    next.setMinutes(Math.ceil(next.getMinutes()/15)*15, 0, 0);
+    $('liveClassAt').value = curitibaInputValue(next);
     renderUsers();
+    renderLiveClasses();
     renderStages();
   } catch (error) {
     setStatus('accessStatus', error.message, 'bad');

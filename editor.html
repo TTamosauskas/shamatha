@@ -21,24 +21,34 @@
     <section class="grid">
       <div class="card">
         <div class="section-head">
-          <div><h2>Liberação de acesso</h2><p>O usuário cria a conta primeiro; você libera o conteúdo e pode promover outros usuários a editor.</p></div>
+          <div><h2>Liberação de acesso</h2><p>Inclua um e-mail para convidar um novo usuário ou atualizar alguém que já esteja na lista.</p></div>
         </div>
-        <form id="accessForm" class="toolbar">
-          <input id="accessEmail" type="email" placeholder="aluno@exemplo.com" required style="flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px">
-          <button class="btn primary small" type="submit" data-action="grant">Liberar</button>
-          <button class="btn danger small" type="button" id="revokeByEmail">Suspender</button>
+        <form id="inviteForm" class="invite-grid">
+          <div class="field invite-email"><label for="inviteEmail">E-mail</label><input id="inviteEmail" type="email" placeholder="aluno@exemplo.com" required></div>
+          <div class="field"><label for="inviteStatus">Estado inicial</label><select id="inviteStatus"><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="suspended">Suspenso</option></select></div>
+          <div class="field"><label for="inviteRole">Função</label><select id="inviteRole"><option value="student">Aluno</option><option value="editor">Editor</option></select></div>
+          <div class="field invite-submit"><label>&nbsp;</label><button class="btn primary small" type="submit">Convidar / adicionar</button></div>
         </form>
         <div id="accessStatus" class="status hidden"></div>
       </div>
 
       <div class="card">
         <div class="section-head">
-          <div><h2>Aula ao vivo</h2><p>O botão do aluno usa exatamente a URL salva aqui.</p></div>
+          <div><h2>Aula ao vivo</h2><p>Agende usando o horário de Curitiba. O link fica disponível aos alunos 30 minutos antes.</p></div>
         </div>
+        <form id="liveClassForm">
+          <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" placeholder="https://meet.google.com/... ou https://zoom.us/..." required></div>
+          <div class="live-schedule-grid">
+            <div class="field"><label for="liveClassAt">Data e hora — Curitiba</label><input id="liveClassAt" type="datetime-local" required></div>
+            <div class="field live-schedule-button"><label>&nbsp;</label><button class="btn primary small" type="submit">Agendar</button></div>
+          </div>
+        </form>
+        <div id="liveClassStatus" class="status hidden"></div>
+        <div id="liveClassList" class="live-class-list"></div>
+        <hr class="soft-rule">
         <form id="settingsForm">
-          <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" placeholder="https://meet.google.com/... ou https://zoom.us/..." /></div>
           <div class="field"><label for="whatsappPhone">WhatsApp do professor</label><input id="whatsappPhone" inputmode="numeric" placeholder="5541999999999" /></div>
-          <button class="btn primary small" type="submit">Salvar configurações</button>
+          <button class="btn secondary small" type="submit">Salvar WhatsApp</button>
         </form>
         <div id="settingsStatus" class="status hidden"></div>
       </div>
@@ -46,12 +56,12 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Usuários cadastrados</h2><p>Gerencie acesso ao conteúdo e a função Aluno/Editor. A conta principal permanece protegida.</p></div>
+        <div><h2>Usuários cadastrados</h2><p>Altere função e estado sem apagar o histórico de progresso. A conta principal permanece protegida.</p></div>
         <span class="badge" id="userCount">0 usuários</span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Função</th><th>Acesso</th><th>Ação</th></tr></thead>
+          <thead><tr><th>E-mail</th><th>Cadastro</th><th>Função</th><th>Estado</th></tr></thead>
           <tbody id="usersBody"></tbody>
         </table>
       </div>
