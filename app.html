@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eaf7fd" />
+  <title>Centro Pineal — Meditação</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <main class="app-shell" id="appShell">
+    <div class="sky-haze"></div>
+    <svg class="mountains" viewBox="0 0 1000 1400" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 495 L180 275 L305 420 L470 235 L650 420 L815 190 L1000 380 L1000 720 L0 720 Z" fill="rgba(255,255,255,.34)"/>
+      <path d="M0 690 L160 505 L300 610 L445 430 L610 595 L760 410 L1000 585 L1000 920 L0 920 Z" fill="rgba(125,180,208,.24)"/>
+      <path d="M0 955 C180 860 290 905 420 800 C560 687 730 790 1000 660 L1000 1400 L0 1400 Z" fill="rgba(94,149,179,.27)"/>
+      <path d="M0 1115 C180 1020 315 1070 485 985 C655 900 825 975 1000 865 L1000 1400 L0 1400 Z" fill="rgba(67,119,149,.31)"/>
+    </svg>
+
+    <header class="home-header">
+      <div>
+        <p class="brand-kicker">APRENDENDO À MEDITAR</p>
+        <h1 class="brand-title">Centro Pineal</h1>
+      </div>
+      <div class="home-actions">
+        <a class="live-class-badge hidden" id="liveClassBadge" href="#" target="_blank" rel="noopener" aria-label="Abrir aula ao vivo">
+          <span class="live-eye" aria-hidden="true">👁</span><span>Ao Vivo</span>
+        </a>
+        <div class="home-status" id="homeStatus">Etapa 1 de 9</div>
+        <div class="account-actions">
+          <span class="account-pill" id="accountEmail"></span>
+          <a class="account-link hidden" id="editorLink" href="./editor.html">Editor</a>
+          <button class="logout-mini" id="logout" type="button">Sair</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="journey" aria-label="Caminho de nove etapas">
+      <svg class="journey-svg" viewBox="0 0 1000 1400" preserveAspectRatio="none" aria-hidden="true">
+        <path class="path-shadow" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
+        <path class="path-line" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
+        <path class="path-glow" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
+      </svg>
+      <button class="stage" data-stage="1" style="left:26%; top:87.5%"><span>1</span></button>
+      <button class="stage future" data-stage="2" style="left:57%; top:80.5%"><span>2</span></button>
+      <button class="stage future" data-stage="3" style="left:66%; top:69.5%"><span>3</span></button>
+      <button class="stage future" data-stage="4" style="left:33%; top:61%"><span>4</span></button>
+      <button class="stage future" data-stage="5" style="left:27%; top:49%"><span>5</span></button>
+      <button class="stage future" data-stage="6" style="left:63%; top:43%"><span>6</span></button>
+      <button class="stage future" data-stage="7" style="left:73%; top:32%"><span>7</span></button>
+      <button class="stage future" data-stage="8" style="left:49%; top:22%"><span>8</span></button>
+      <button class="stage future" data-stage="9" style="left:76%; top:10%"><span>9</span></button>
+      <div class="elephant" id="journeyElephant" aria-hidden="true">🐘</div>
+    </section>
+
+    <section class="current-card" aria-live="polite">
+      <div class="card-topline">
+        <p class="eyebrow hidden" id="currentStageLabel" aria-hidden="true"></p>
+        <span class="mini-progress" id="miniProgress">0/3</span>
+      </div>
+      <h2 id="currentUnitName">Carregando caminho…</h2>
+      <p id="currentObjective"></p>
+      <button class="primary" id="continuePath">Abrir etapa</button>
+    </section>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <div class="modal-backdrop hidden" id="unitModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <section class="unit-window">
+      <header class="unit-toolbar">
+        <div class="unit-toolbar-title"><small id="toolbarStage"></small><strong id="modalTitle"></strong></div>
+        <button class="icon-btn" id="closeUnit" aria-label="Fechar unidade">×</button>
+      </header>
+      <div class="unit-scroll" id="unitScroll"></div>
+    </section>
+  </div>
+
+  <div class="session-popup-backdrop hidden" id="sessionPopup" role="dialog" aria-modal="true" aria-live="polite"></div>
+  <audio id="meditationAudio" preload="metadata"></audio>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./assets/config.js"></script>
+<script src="./assets/supabase-backend.js"></script>
+<script src="./assets/app.js"></script>
+</body>
+</html>
