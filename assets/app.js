@@ -36,8 +36,9 @@
   let journeyVisualLength = 0;
   let journeyLayoutTimer = null;
   let recoveredSessionPending = false;
-  let cycleWatchTimer = null;
+  let progressWatchTimer = null;
 
+  const DAY_MS = 86400000;
   const stagePositions = {
     1:{left:26,top:87.5},2:{left:57,top:80.5},3:{left:66,top:69.5},4:{left:33,top:61},5:{left:27,top:49},6:{left:63,top:43},7:{left:73,top:32},8:{left:49,top:22},9:{left:76,top:10}
   };
@@ -54,7 +55,6 @@
 
   function config(stage = selectedStage) { return appData.stages[stage - 1]; }
   function stageState(stage = selectedStage) { return progress.stages[stage]; }
-  function advancementRequirement(stage = selectedStage) { return config(stage).advancementRequirement === 'deadline' ? 'deadline' : 'sessions'; }
 
   function saveProgress({ immediate = false } = {}) {
     if (appData.user.role === 'editor') return Promise.resolve();
@@ -82,20 +82,77 @@
     const s = Math.round(total); return `${s} ${s === 1 ? 'segundo' : 'segundos'}`;
   }
 
-  function countedSessions(stage = selectedStage) {
-    return stageState(stage).sessions.filter(s => s.countedForProgress);
+  function sessionTime(session) {
+    for (const value of [session?.startedAt, session?.savedAt, session?.endedAt]) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) return numeric;
+      const parsed = new Date(value).getTime();
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 0;
+  }
+
+  function sessionDateKey(session) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(session?.dateKey || ''))) return session.dateKey;
+    const time = sessionTime(session);
+    return time ? localDateKey(time) : '';
+  }
+
+  function isValidSession(session) {
+    return session?.valid === true || (session?.valid == null && session?.countedForProgress === true);
+  }
+
+  function windowStartKey(stage = selectedStage, now = Date.now()) {
+    const days = Math.max(1, Number(config(stage).deadlineDays || 1));
+    const start = new Date(now);
+    start.setHours(0,0,0,0);
+    start.setDate(start.getDate() - (days - 1));
+    return localDateKey(start);
+  }
+
+  function validWindowSessions(stage = selectedStage) {
+    const startKey = windowStartKey(stage);
+    const byDate = new Map();
+    const sessions = (stageState(stage).sessions || [])
+      .filter(isValidSession)
+      .slice()
+      .sort((a,b) => sessionTime(a) - sessionTime(b));
+    for (const session of sessions) {
+      const key = sessionDateKey(session);
+      if (!key || key < startKey || byDate.has(key)) continue;
+      byDate.set(key, session);
+    }
+    return [...byDate.values()];
+  }
+
+  function refreshWindowFlags(stage = selectedStage) {
+    const st = stageState(stage), required = Math.max(1, Number(config(stage).sessionsRequired || 1));
+    const eligible = validWindowSessions(stage).slice(-required);
+    const active = new Set(eligible);
+    let changed = false;
+    for (const session of st.sessions || []) {
+      const next = active.has(session);
+      if (Boolean(session.countedForProgress) !== next) {
+        session.countedForProgress = next;
+        changed = true;
+      }
+    }
+    return { count:eligible.length, changed };
   }
 
   function completedCount(stage = selectedStage) {
-    return Math.min(config(stage).sessionsRequired, countedSessions(stage).length);
+    return Math.min(Number(config(stage).sessionsRequired || 0), validWindowSessions(stage).length);
   }
 
-  function deadlineInfo(stage = selectedStage) {
-    const st = stageState(stage), cfg = config(stage);
-    if (!st.cycleStartedAt) return { started:false, daysLeft:cfg.deadlineDays, expired:false };
-    const end = new Date(st.cycleStartedAt).getTime() + cfg.deadlineDays * 86400000;
-    const left = end - Date.now();
-    return { started:true, end, expired:left <= 0, daysLeft:Math.max(0, Math.ceil(left/86400000)) };
+  function latestValidPracticeAt() {
+    let latest = 0;
+    for (const st of Object.values(progress?.stages || {})) {
+      for (const session of st?.sessions || []) {
+        if (!isValidSession(session)) continue;
+        latest = Math.max(latest, sessionTime(session));
+      }
+    }
+    return latest;
   }
 
   function completeStage(stage) {
@@ -110,35 +167,37 @@
     return { completed:true, advanced };
   }
 
-  function ensureCycle(stage) {
-    const st = stageState(stage), cfg = config(stage);
-    if (st.completedAt) return { completed:false, advanced:false, reset:false };
+  function regressForInactivity() {
+    const from = Number(progress.currentStage || 1);
+    if (from <= 1 || appData.user.role === 'editor') return { regressed:false };
+    const days = Math.max(1, Number(config(from).deadlineDays || 1));
+    const latest = latestValidPracticeAt();
+    const resetAnchor = Number(progress.inactivityAnchorAt || 0);
+    const anchor = Math.max(latest, resetAnchor);
+    if (!anchor || Date.now() - anchor < days * DAY_MS) return { regressed:false };
 
-    const count = completedCount(stage);
-    if (advancementRequirement(stage) === 'sessions' && count >= cfg.sessionsRequired) {
+    const to = from - 1;
+    progress.currentStage = to;
+    for (let stage = to; stage <= 9; stage += 1) stageState(stage).completedAt = null;
+    progress.inactivityAnchorAt = Date.now();
+    refreshWindowFlags(to);
+    saveProgress({ immediate:true });
+    return { regressed:true, from, to, days };
+  }
+
+  function applyProgressRules() {
+    const regression = regressForInactivity();
+    const stage = Number(progress.currentStage || 1);
+    const refreshed = refreshWindowFlags(stage);
+    const cfg = config(stage), st = stageState(stage);
+    let completed = false, advanced = false;
+    if (!regression.regressed && !st.completedAt && refreshed.count >= cfg.sessionsRequired) {
       const result = completeStage(stage);
-      saveProgress({ immediate:true });
-      return { ...result, reset:false };
+      completed = result.completed;
+      advanced = result.advanced;
     }
-
-    if (!st.cycleStartedAt) return { completed:false, advanced:false, reset:false };
-    const expired = Date.now() > new Date(st.cycleStartedAt).getTime() + cfg.deadlineDays * 86400000;
-    if (!expired) return { completed:false, advanced:false, reset:false };
-
-    if (advancementRequirement(stage) === 'deadline' && count >= cfg.sessionsRequired) {
-      const result = completeStage(stage);
-      saveProgress({ immediate:true });
-      return { ...result, reset:false };
-    }
-
-    if (count < cfg.sessionsRequired) {
-      st.sessions = st.sessions.map(s => ({ ...s, countedForProgress:false }));
-      st.cycleStartedAt = null;
-      saveProgress({ immediate:true });
-      return { completed:false, advanced:false, reset:true };
-    }
-
-    return { completed:false, advanced:false, reset:false };
+    if ((refreshed.changed || completed) && appData.user.role !== 'editor') saveProgress({ immediate:true });
+    return { ...regression, completed, advanced, stage };
   }
 
   function showToast(message) {
@@ -186,21 +245,21 @@
   function currentPosition() {
     const stage = progress.currentStage;
     if (stage >= 9 && stageState(9).completedAt) return { ...stagePositions[9], stage:9 };
-    const cfg = config(stage), count = completedCount(stage);
-    let ratio = Math.max(0, Math.min(1, count/cfg.sessionsRequired));
-    if (advancementRequirement(stage) === 'deadline' && ratio >= 1 && !stageState(stage).completedAt) ratio = .94;
+    const cfg = config(stage), count = completedCount(stage), ratio = Math.max(0, Math.min(1, count/cfg.sessionsRequired));
     const pathRatio = ((stage-1)+ratio)/8;
     return { ...pointOnJourneyVisual(pathRatio), stage };
   }
 
   function updateHome({ animateAdvance = false } = {}) {
-    let current = progress.currentStage;
-    const cycleResult = ensureCycle(current);
-    if (cycleResult.completed) {
+    const ruleResult = applyProgressRules();
+    if (ruleResult.regressed) {
+      showToast(`${ruleResult.days} dias sem uma sessão válida. Você retornou para a etapa ${ruleResult.to}.`);
+    } else if (ruleResult.completed) {
       animateAdvance = true;
-      showToast(cycleResult.advanced ? 'Prazo concluído. A próxima etapa foi liberada.' : 'Prazo concluído. Etapa finalizada.');
-      current = progress.currentStage;
+      showToast(ruleResult.advanced ? 'Meta cumprida na janela atual. A próxima etapa foi liberada.' : 'Meta cumprida. Caminho concluído.');
     }
+
+    const current = progress.currentStage;
     const cfg = config(current), count = completedCount(current), allDone = current === 9 && Boolean(stageState(9).completedAt);
     const pos = currentPosition();
     el.elephant.style.left = `${pos.left}%`; el.elephant.style.top = `${pos.top}%`;
@@ -218,8 +277,7 @@
     el.homeStatus.textContent = allDone ? 'Caminho concluído' : `Etapa ${current} de 9`;
     el.unitName.textContent = `Etapa ${current} – ${cfg.unitName}`;
     el.objective.textContent = cfg.objective || '';
-    const waitingDeadline = advancementRequirement(current) === 'deadline' && count >= cfg.sessionsRequired && !stageState(current).completedAt;
-    el.miniProgress.textContent = allDone ? '9 etapas concluídas' : waitingDeadline ? `${count}/${cfg.sessionsRequired} · aguardando prazo` : `${count}/${cfg.sessionsRequired}`;
+    el.miniProgress.textContent = allDone ? '9 etapas concluídas' : `${count}/${cfg.sessionsRequired} · últimos ${cfg.deadlineDays} dias`;
     el.continuePath.textContent = allDone ? 'Rever etapa 9' : 'Abrir etapa';
   }
 
@@ -333,7 +391,7 @@
   function renderReflection() {
     if(!currentSession){renderPreparation();return;}
     const cfg=config();
-    el.scroll.innerHTML=`<div class="view reflection"><div class="unit-heading reflection-heading"><p class="eyebrow">Registro da prática</p><h1>Como foi esta sessão?</h1></div><div class="elapsed-card"><small>Tempo de prática</small><strong>${escapeHtml(formatDuration(currentSession.elapsedSeconds))}</strong></div><div class="field"><div class="field-label"><span>Presença percebida</span><span class="lucidity-value" id="lucidityValue">Escolha um valor</span></div><div class="range-shell"><input id="lucidity" class="empty-range" type="range" min="0" max="100" value="50" data-chosen="false"><div class="range-labels"><span>Disperso</span><span>Presente</span><span>Lúcido</span></div></div></div><div class="field"><div class="field-label"><span>Observações</span></div><div class="notes-wrap"><textarea id="notes" placeholder="O que você percebeu durante a prática?"></textarea></div></div><div class="validation-note">Uma sessão entra no progresso ao alcançar ${escapeHtml(formatRoundedDuration(cfg.minSessionSeconds))}; cada data soma uma sessão ao ciclo.</div><div class="after-actions"><button class="primary" id="saveSession">Salvar sessão</button><button class="ghost" id="discardReflection">Voltar ao caminho</button></div><div id="saveArea"></div></div>`;
+    el.scroll.innerHTML=`<div class="view reflection"><div class="unit-heading reflection-heading"><p class="eyebrow">Registro da prática</p><h1>Como foi esta sessão?</h1></div><div class="elapsed-card"><small>Tempo de prática</small><strong>${escapeHtml(formatDuration(currentSession.elapsedSeconds))}</strong></div><div class="field"><div class="field-label"><span>Presença percebida</span><span class="lucidity-value" id="lucidityValue">Escolha um valor</span></div><div class="range-shell"><input id="lucidity" class="empty-range" type="range" min="0" max="100" value="50" data-chosen="false"><div class="range-labels"><span>Disperso</span><span>Presente</span><span>Lúcido</span></div></div></div><div class="field"><div class="field-label"><span>Observações</span></div><div class="notes-wrap"><textarea id="notes" placeholder="O que você percebeu durante a prática?"></textarea></div></div><div class="validation-note">Uma sessão válida por dia entra na janela móvel dos últimos ${escapeHtml(cfg.deadlineDays)} dias.</div><div class="after-actions"><button class="primary" id="saveSession">Salvar sessão</button><button class="ghost" id="discardReflection">Voltar ao caminho</button></div><div id="saveArea"></div></div>`;
     const range=document.getElementById('lucidity'); range.addEventListener('input',()=>{range.dataset.chosen='true';range.classList.remove('empty-range');document.getElementById('lucidityValue').textContent=`${range.value}%`;});
     document.getElementById('saveSession').addEventListener('click',saveCurrentSession);
     document.getElementById('discardReflection').addEventListener('click',()=>{currentSession=null;sessionState='preparation';closeUnit();});
@@ -344,30 +402,29 @@
     const lucidityEl=document.getElementById('lucidity'), notesEl=document.getElementById('notes');
     if(!lucidityEl || lucidityEl.dataset.chosen!=='true'){showToast('Escolha a presença percebida antes de salvar.');lucidityEl?.focus();return;}
     const cfg=config(), st=stageState();
-    const cycleResult=ensureCycle(selectedStage);
-    const dateKey=localDateKey(currentSession.startedAt), alreadyCounted=countedSessions().some(s=>s.dateKey===dateKey), deadline=deadlineInfo();
+    const dateKey=localDateKey(currentSession.startedAt);
     const effectivePractice=config().audioUrl ? Number(currentSession.playbackSeconds||0) : Number(currentSession.elapsedSeconds||0);
     const valid=effectivePractice>=cfg.minSessionSeconds;
-    let countedForProgress=valid && !alreadyCounted && !deadline.expired && completedCount()<cfg.sessionsRequired && !st.completedAt;
-    if(valid && !st.cycleStartedAt && !alreadyCounted && !st.completedAt){st.cycleStartedAt=currentSession.startedAt;countedForProgress=true;}
-    const saved={...currentSession,dateKey,lucidity:Number(lucidityEl.value),notes:notesEl.value.trim(),valid,countedForProgress,savedAt:Date.now(),sharedAt:null};
-    st.sessions.push(saved); currentSession={...saved,saved:true};
-    const count=completedCount(); let advanced=cycleResult.advanced;
-    if(advancementRequirement(selectedStage)==='sessions' && count>=cfg.sessionsRequired && !st.completedAt){advanced=completeStage(selectedStage).advanced;}
-    saveProgress({immediate:true}); renderSavedResult(saved,advanced); updateHome({animateAdvance:countedForProgress || advanced});
+    const saved={...currentSession,dateKey,lucidity:Number(lucidityEl.value),notes:notesEl.value.trim(),valid,countedForProgress:false,savedAt:Date.now(),sharedAt:null};
+    st.sessions.push(saved);
+    if (valid) progress.inactivityAnchorAt = saved.savedAt;
+    const refreshed=refreshWindowFlags(selectedStage);
+    currentSession={...saved,countedForProgress:Boolean(saved.countedForProgress),saved:true};
+    const count=refreshed.count; let advanced=false;
+    if(count>=cfg.sessionsRequired && !st.completedAt){advanced=completeStage(selectedStage).advanced;}
+    saveProgress({immediate:true}); renderSavedResult(currentSession,advanced); updateHome({animateAdvance:Boolean(saved.countedForProgress) || advanced});
   }
 
   function renderSavedResult(savedSession, advanced) {
     const saveArea=document.getElementById('saveArea'); document.getElementById('saveSession').disabled=true;
-    const cfg=config(), st=stageState(), count=completedCount(), pct=Math.round((count/cfg.sessionsRequired)*100), prior=Math.max(0,count-(savedSession.countedForProgress?1:0)), priorPct=Math.round((prior/cfg.sessionsRequired)*100), deadline=deadlineInfo();
-    const stageFinished=Boolean(st.completedAt), waitingDeadline=advancementRequirement()==='deadline' && count>=cfg.sessionsRequired && !stageFinished;
-    const message=savedSession.countedForProgress?'Sessão incorporada ao progresso da etapa.':savedSession.valid?'Sessão registrada como prática adicional.':'Sessão registrada como prática livre; o progresso começa a partir do tempo mínimo definido para a etapa.';
+    const cfg=config(), st=stageState(), count=completedCount(), pct=Math.round((count/cfg.sessionsRequired)*100), prior=Math.max(0,count-(savedSession.countedForProgress?1:0)), priorPct=Math.round((prior/cfg.sessionsRequired)*100);
+    const stageFinished=Boolean(st.completedAt), remaining=Math.max(0,cfg.sessionsRequired-count);
+    const message=savedSession.countedForProgress?'Sessão válida incorporada à janela atual.':savedSession.valid?'Sessão registrada como prática adicional.':'Sessão registrada como prática livre; o progresso começa a partir do tempo mínimo definido para a etapa.';
     const preview=buildShareText(savedSession), resultClass=savedSession.countedForProgress?'good':'neutral';
-    const deadlineText=waitingDeadline
-      ? `Meta de sessões cumprida. A etapa avança ao fim do prazo; restam ${deadline.daysLeft} ${deadline.daysLeft===1?'dia':'dias'}.`
-      : deadline.expired?'O ciclo atual encerrou; a próxima prática válida inicia um novo ciclo.':`Restam ${deadline.daysLeft} ${deadline.daysLeft===1?'dia':'dias'} no ciclo atual.`;
-    const progressStatus=stageFinished?'Etapa concluída.':deadlineText;
-    saveArea.innerHTML=`<div class="save-result ${resultClass}">${escapeHtml(message)}</div><section class="progress-card"><h3>Seu progresso</h3><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" id="progressFill" style="width:${priorPct}%"></div><span class="progress-mark" style="left:0%"></span><span class="progress-mark" style="left:33.333%"></span><span class="progress-mark" style="left:66.666%"></span><span class="progress-mark" style="left:100%"></span><span class="progress-elephant" id="progressElephant" style="left:${priorPct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${cfg.sessionsRequired}</strong> sessões concluídas.</span><span>${escapeHtml(progressStatus)}</span></div></section>${appData.settings.whatsappPhone?`<section class="share-card"><pre class="preview">${escapeHtml(preview)}</pre><div class="share-actions"><a class="whatsapp" id="shareWhatsapp" target="_blank" rel="noopener">Enviar ao Professor</a></div></section>`:''}${stageFinished?`<div class="completion"><div class="completion-symbol">🐘</div><h2>${selectedStage===9?'Caminho concluído.':'Etapa concluída.'}</h2><p>${advanced?'A próxima etapa foi liberada e já aparece no caminho.':'Esta etapa permanece disponível no seu histórico.'}</p><button class="primary" id="completeStage">Voltar ao caminho</button></div>`:''}`;
+    const progressStatus=stageFinished
+      ? `Meta cumprida nos últimos ${cfg.deadlineDays} dias. Etapa concluída.`
+      : `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão válida' : 'sessões válidas'} nos últimos ${cfg.deadlineDays} dias.`;
+    saveArea.innerHTML=`<div class="save-result ${resultClass}">${escapeHtml(message)}</div><section class="progress-card"><h3>Seu progresso</h3><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" id="progressFill" style="width:${priorPct}%"></div><span class="progress-mark" style="left:0%"></span><span class="progress-mark" style="left:33.333%"></span><span class="progress-mark" style="left:66.666%"></span><span class="progress-mark" style="left:100%"></span><span class="progress-elephant" id="progressElephant" style="left:${priorPct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${cfg.sessionsRequired}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>${appData.settings.whatsappPhone?`<section class="share-card"><pre class="preview">${escapeHtml(preview)}</pre><div class="share-actions"><a class="whatsapp" id="shareWhatsapp" target="_blank" rel="noopener">Enviar ao Professor</a></div></section>`:''}${stageFinished?`<div class="completion"><div class="completion-symbol">🐘</div><h2>${selectedStage===9?'Caminho concluído.':'Etapa concluída.'}</h2><p>${advanced?'A próxima etapa foi liberada e já aparece no caminho.':'Esta etapa permanece disponível no seu histórico.'}</p><button class="primary" id="completeStage">Voltar ao caminho</button></div>`:''}`;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{const pe=document.getElementById('progressElephant'),pf=document.getElementById('progressFill');if(savedSession.countedForProgress&&pe)pe.classList.add('session-advance');if(pe)pe.style.left=`${pct}%`;if(pf)pf.style.width=`${pct}%`;}));
     const share=document.getElementById('shareWhatsapp'); if(share){share.href=`https://api.whatsapp.com/send?phone=${encodeURIComponent(appData.settings.whatsappPhone)}&text=${encodeURIComponent(preview)}`;share.addEventListener('click',()=>markShared(savedSession.id));}
     document.getElementById('completeStage')?.addEventListener('click',()=>{el.modal.classList.add('hidden');document.body.style.overflow='';selectedStage=progress.currentStage;updateHome({animateAdvance:advanced});showSessionCompletionPopup(advanced);});
@@ -400,7 +457,7 @@
 
   el.continuePath.addEventListener('click',()=>{
     if(recoveredSessionPending&&currentSession){recoveredSessionPending=false;openUnit('reflection');showToast('A prática interrompida foi recuperada para registro.');return;}
-    selectedStage=progress.currentStage; ensureCycle(selectedStage); selectedStage=progress.currentStage; openUnit(stageState().introDone?'practice':'intro');
+    applyProgressRules(); selectedStage=progress.currentStage; openUnit(stageState().introDone?'practice':'intro');
   });
   el.close.addEventListener('click',closeUnit);
   el.modal.addEventListener('click',event=>{if(event.target===el.modal&&!['active','countdown'].includes(sessionState))closeUnit();});
@@ -413,7 +470,7 @@
   }));
 
   el.logout.addEventListener('click',async()=>{await api('/api/logout',{method:'POST',body:'{}'}).catch(()=>null);location.href='./index.html';});
-  window.addEventListener('beforeunload',()=>{if(['active','countdown'].includes(sessionState))saveActiveSession();clearInterval(cycleWatchTimer);});
+  window.addEventListener('beforeunload',()=>{if(['active','countdown'].includes(sessionState))saveActiveSession();clearInterval(progressWatchTimer);});
   window.addEventListener('resize',()=>{clearTimeout(journeyLayoutTimer);journeyLayoutTimer=setTimeout(()=>{rebuildUniformJourneyLayout();updateHome();},120);});
 
   async function init() {
@@ -423,7 +480,7 @@
     const live=String(appData.settings.liveClassUrl||'').trim();
     if(live){el.liveClassBadge.href=live;el.liveClassBadge.classList.remove('hidden');el.liveClassBadge.setAttribute('aria-label',`Abrir aula ao vivo: ${live}`);}else{el.liveClassBadge.classList.add('hidden');}
     selectedStage=progress.currentStage; rebuildUniformJourneyLayout(); updateHome(); recoveredSessionPending=recoverInterruptedSession();
-    cycleWatchTimer=setInterval(()=>{if(progress && el.modal.classList.contains('hidden'))updateHome();},60000);
+    progressWatchTimer=setInterval(()=>{if(progress && el.modal.classList.contains('hidden'))updateHome();},60000);
   }
 
   init().catch(error=>showToast(error.message));
