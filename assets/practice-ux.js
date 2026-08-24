@@ -37,7 +37,9 @@
     const start = new Date();
     start.setHours(0,0,0,0);
     start.setDate(start.getDate() - (days - 1));
-    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(session?.dateKey || '')) ? session.dateKey : (sessionTime(session) ? localDateKey(sessionTime(session)) : '');
+    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(session?.dateKey || ''))
+      ? session.dateKey
+      : (sessionTime(session) ? localDateKey(sessionTime(session)) : '');
     return Boolean(key && key >= localDateKey(start));
   }
 
@@ -45,7 +47,10 @@
     const st = stageState(state.progress, stage);
     const cfg = stageConfig(stage);
     if (!st || !cfg) return 0;
-    return Math.min(Number(cfg.sessionsRequired || 0), (st.sessions || []).filter(session => session.countedForProgress && inWindow(session, stage)).length);
+    return Math.min(
+      Number(cfg.sessionsRequired || 0),
+      (st.sessions || []).filter(session => session.countedForProgress && inWindow(session, stage)).length
+    );
   }
 
   function markNewestFreeSession(progress) {
@@ -110,27 +115,63 @@
     return (st?.sessions || []).filter(session => session?.freeSession === true && inWindow(session, stage)).length;
   }
 
+  function syncProgressMarks(required) {
+    const line = document.querySelector('#saveArea .progress-line');
+    const elephant = line?.querySelector('.progress-elephant');
+    if (!line || !elephant || !Number.isFinite(required) || required < 1) return;
+    line.querySelectorAll('.progress-mark').forEach(mark => mark.remove());
+    for (let index = 0; index <= required; index += 1) {
+      const mark = document.createElement('span');
+      mark.className = 'progress-mark';
+      mark.style.left = `${(index / required) * 100}%`;
+      line.insertBefore(mark, elephant);
+    }
+  }
+
+  function markSavedLayout() {
+    const reflection = document.querySelector('#unitScroll .reflection');
+    const saveArea = document.getElementById('saveArea');
+    if (!reflection || !saveArea || !saveArea.children.length) return false;
+    reflection.classList.add('session-saved');
+    return true;
+  }
+
   function syncProgressFacts() {
     const reflection = document.querySelector('#unitScroll .reflection');
     const saveArea = document.getElementById('saveArea');
     const firstFact = saveArea?.querySelector('.progress-facts > span:first-child');
+    const secondFact = saveArea?.querySelector('.progress-facts > span:nth-child(2)');
     if (!reflection || !saveArea || !saveArea.children.length || !firstFact) return;
     reflection.classList.add('session-saved');
 
-    const stage = state.activeStage;
+    const stage = state.activeStage || parseStageFromToolbar();
     const cfg = stageConfig(stage);
+    const st = stageState(state.progress, stage);
     if (!stage || !cfg) return;
+
     const count = countedCount(stage);
-    const required = Number(cfg.sessionsRequired || 0);
+    const required = Math.max(1, Number(cfg.sessionsRequired || 1));
     const days = Number(cfg.deadlineDays || 0);
     const free = freeSessionCount(stage);
+    const remaining = Math.max(0, required - count);
     const base = `<strong>${count} de ${required}</strong> sessões válidas nos últimos ${days} dias`;
+
     if (free > 0) {
       const freeLabel = free === 1 ? 'sessão livre' : 'sessões livres';
       firstFact.innerHTML = `${base} e <strong>${free}</strong> ${freeLabel}.`;
     } else {
       firstFact.innerHTML = `${base}.`;
     }
+
+    if (secondFact) {
+      if (st?.completedAt || remaining === 0) {
+        secondFact.textContent = `Meta cumprida nos últimos ${days} dias. Etapa concluída.`;
+      } else {
+        secondFact.textContent = `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão diária' : 'sessões diárias'} para a meta.`;
+      }
+    }
+
+    syncProgressMarks(required);
   }
 
   function showPresenceError(range) {
@@ -147,7 +188,7 @@
       error.textContent = 'Escolha um valor em Presença percebida antes de salvar.';
       field.appendChild(error);
     }
-    range.focus();
+    range.focus({ preventScroll:false });
   }
 
   function clearPresenceError(range) {
@@ -178,21 +219,37 @@
       }
       clearPresenceError(range);
     }
+
+    if (target?.closest('#shareWhatsapp')) {
+      closePracticeWindow();
+    }
   }, true);
+
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('#saveSession')) return;
+    queueMicrotask(() => {
+      markSavedLayout();
+      syncProgressFacts();
+    });
+    requestAnimationFrame(() => {
+      markSavedLayout();
+      syncProgressFacts();
+    });
+  });
 
   document.addEventListener('input', event => {
     const target = event.target;
     if (target instanceof HTMLInputElement && target.id === 'lucidity') clearPresenceError(target);
   });
 
-  document.addEventListener('click', event => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('#shareWhatsapp')) setTimeout(closePracticeWindow, 0);
-  }, true);
-
   const scroll = document.getElementById('unitScroll');
   const toolbar = document.getElementById('toolbarStage');
-  const sync = () => { syncPracticeHeader(); syncProgressFacts(); };
+  const sync = () => {
+    syncPracticeHeader();
+    markSavedLayout();
+    syncProgressFacts();
+  };
   if (scroll) new MutationObserver(sync).observe(scroll, { childList:true, subtree:true });
   if (toolbar) new MutationObserver(syncPracticeHeader).observe(toolbar, { childList:true, subtree:true, characterData:true });
   sync();
