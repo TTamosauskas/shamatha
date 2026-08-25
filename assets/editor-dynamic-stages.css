@@ -1,0 +1,14 @@
+.stage-add-row {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px solid rgba(15,23,42,.08);
+}
+.stage-add-row .status { margin:0; }
+@media (max-width:760px) {
+  .stage-add-row { align-items:stretch; flex-direction:column; }
+  .stage-add-row .btn { width:100%; }
+}

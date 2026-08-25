@@ -128,21 +128,38 @@
     };
   }
 
-  function defaultProgress() {
+  function defaultProgress(totalStages = 9) {
+    const count = clampInt(totalStages, 1, 30, 9);
     const stages = {};
-    for (let i = 1; i <= 9; i += 1) stages[i] = defaultStageProgress();
+    for (let i = 1; i <= count; i += 1) stages[i] = defaultStageProgress();
     return { currentStage: 1, stages, updatedAt: Date.now() };
   }
 
-  function normalizeProgress(input) {
-    const progress = input && typeof input === 'object' ? structuredClone(input) : defaultProgress();
-    progress.currentStage = Math.max(1, Math.min(9, Number(progress.currentStage || 1)));
+  function normalizeProgress(input, totalStages = null) {
+    const hasInput = input && typeof input === 'object';
+    const progress = hasInput ? structuredClone(input) : { currentStage:1, stages:{}, updatedAt:Date.now() };
     progress.stages = progress.stages && typeof progress.stages === 'object' ? progress.stages : {};
-    for (let i = 1; i <= 9; i += 1) {
+    const existingNumbers = Object.keys(progress.stages)
+      .map(value => Number(value))
+      .filter(value => Number.isInteger(value) && value >= 1 && value <= 30);
+    const previousTotal = existingNumbers.length ? Math.max(...existingNumbers) : 1;
+    const inferred = Math.max(previousTotal, Number(progress.currentStage || 1));
+    const count = clampInt(totalStages == null ? inferred : totalStages, 1, 30, 9);
+
+    for (let i = 1; i <= count; i += 1) {
       const existing = progress.stages[i] || progress.stages[String(i)] || {};
       progress.stages[i] = { ...defaultStageProgress(), ...existing };
       progress.stages[i].sessions = Array.isArray(progress.stages[i].sessions) ? progress.stages[i].sessions.slice(-500) : [];
     }
+
+    let current = Math.max(1, Math.min(count, Number(progress.currentStage || 1)));
+    if (
+      hasInput && count > previousTotal && current === previousTotal &&
+      Boolean(progress.stages[previousTotal]?.completedAt)
+    ) {
+      current = Math.min(count, previousTotal + 1);
+    }
+    progress.currentStage = current;
     progress.updatedAt = Date.now();
     return progress;
   }
@@ -204,11 +221,12 @@
     if (stagesResult.error) throw new BackendError(readableError(stagesResult.error), 400, stagesResult.error);
     if (settingsResult.error) throw new BackendError(readableError(settingsResult.error), 400, settingsResult.error);
 
-    let progress = defaultProgress();
+    const totalStages = clampInt((stagesResult.data || []).length, 1, 30, 1);
+    let progress = defaultProgress(totalStages);
     if (profile.role !== 'editor') {
       const result = await sb.from('progress').select('data').eq('user_id', authUser.id).maybeSingle();
       if (result.error) throw new BackendError(readableError(result.error), 400, result.error);
-      progress = normalizeProgress(result.data?.data);
+      progress = normalizeProgress(result.data?.data, totalStages);
       if (!result.data) {
         const inserted = await sb.from('progress').insert({ user_id: authUser.id, data: progress });
         if (inserted.error) throw new BackendError(readableError(inserted.error), 400, inserted.error);
@@ -275,11 +293,21 @@
   async function saveStage(number, body) {
     const sb = getClient();
     await requireProfile({ editor: true });
-    if (number < 1 || number > 9) throw new BackendError('Etapa inválida.', 400);
+    if (number < 1 || number > 30) throw new BackendError('Etapa inválida.', 400);
     const row = stageToRow(number, body);
     const result = await sb.from('stages').update(row).eq('number', number).select('*').single();
     if (result.error) throw new BackendError(readableError(result.error), 400, result.error);
     return { stage: stageFromRow(result.data) };
+  }
+
+  async function addStage() {
+    const sb = getClient();
+    await requireProfile({ editor: true });
+    const result = await sb.rpc('add_shamatha_stage');
+    if (result.error) throw new BackendError(readableError(result.error), 400, result.error);
+    const row = Array.isArray(result.data) ? result.data[0] : result.data;
+    if (!row) throw new BackendError('A nova etapa não pôde ser criada.', 400);
+    return { stage: stageFromRow(row) };
   }
 
   async function saveSettings(body) {
@@ -346,6 +374,7 @@
     if (path === '/api/editor/data' && method === 'GET') return editorData();
     if (path === '/api/editor/access' && method === 'PUT') return setAccess(body);
     if (path === '/api/editor/settings' && method === 'PUT') return saveSettings(body);
+    if (path === '/api/editor/stages' && method === 'POST') return addStage();
 
     const stageMatch = path.match(/^\/api\/editor\/stages\/(\d+)$/);
     if (stageMatch && method === 'PUT') return saveStage(Number(stageMatch[1]), body);

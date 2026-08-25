@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Centro Pineal — Editor</title>
-  <link rel="stylesheet" href="./assets/site.css?v=20260824-1257">
-  <link rel="stylesheet" href="./assets/editor-v2.css?v=20260824-1257">
-  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260825-0920">
+  <link rel="stylesheet" href="./assets/site.css?v=20260825-1420">
+  <link rel="stylesheet" href="./assets/editor-v2.css?v=20260825-1420">
+  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260825-1420">
+  <link rel="stylesheet" href="./assets/editor-dynamic-stages.css?v=20260825-1420">
 </head>
 <body>
   <main class="shell">
@@ -75,19 +76,24 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Conteúdo das 9 etapas</h2></div>
+        <div><h2 id="stageContentTitle">Conteúdo das etapas</h2></div>
       </div>
       <div id="stages"></div>
+      <div class="stage-add-row">
+        <button class="btn secondary" id="addStageButton" type="button">Adicionar Etapa</button>
+        <span class="status hidden" id="addStageStatus"></span>
+      </div>
     </section>
   </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20260824-1257"></script>
-<script src="./assets/supabase-backend.js?v=20260824-1257"></script>
-<script src="./assets/shamatha-extensions.js?v=20260824-1257"></script>
-<script src="./assets/runtime-v3.js?v=20260824-1257"></script>
-<script src="./assets/editor-v2.js?v=20260824-1257"></script>
-<script src="./assets/editor-cleanup.js?v=20260825-0920"></script>
-<script src="./assets/editor-enhancements.js?v=20260825-0920"></script>
-<script src="./assets/editor-users-pagination.js?v=20260825-0920"></script>
+<script src="./assets/config.js?v=20260825-1420"></script>
+<script src="./assets/supabase-backend.js?v=20260825-1420"></script>
+<script src="./assets/shamatha-extensions.js?v=20260825-1420"></script>
+<script src="./assets/runtime-v3.js?v=20260825-1420"></script>
+<script src="./assets/editor-v2.js?v=20260825-1420"></script>
+<script src="./assets/editor-cleanup.js?v=20260825-1420"></script>
+<script src="./assets/editor-enhancements.js?v=20260825-1420"></script>
+<script src="./assets/editor-users-pagination.js?v=20260825-1420"></script>
+<script src="./assets/editor-dynamic-stages.js?v=20260825-1420"></script>
 </body>
 </html>

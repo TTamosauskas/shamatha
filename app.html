@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#eaf7fd" />
   <title>Centro Pineal — Meditação</title>
-  <link rel="manifest" href="./manifest.webmanifest?v=20260825-0655" />
+  <link rel="manifest" href="./manifest.webmanifest?v=20260825-1420" />
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./assets/app.css?v=20260825-0655" />
-  <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260825-0655" />
-  <link rel="stylesheet" href="./assets/practice-flow.css?v=20260825-0655" />
-  <link rel="stylesheet" href="./assets/header-reminder.css?v=20260825-0655" />
-  <link rel="stylesheet" href="./assets/objective-preview.css?v=20260825-0655" />
+  <link rel="stylesheet" href="./assets/app.css?v=20260825-1420" />
+  <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260825-1420" />
+  <link rel="stylesheet" href="./assets/practice-flow.css?v=20260825-1420" />
+  <link rel="stylesheet" href="./assets/header-reminder.css?v=20260825-1420" />
+  <link rel="stylesheet" href="./assets/objective-preview.css?v=20260825-1420" />
+  <link rel="stylesheet" href="./assets/dynamic-journey.css?v=20260825-1420" />
 </head>
 <body>
   <main class="app-shell" id="appShell">
@@ -28,7 +29,7 @@
         <p class="brand-kicker">APRENDENDO À MEDITAR</p>
         <h1 class="brand-title">Centro Pineal</h1>
         <div class="brand-meta">
-          <div class="home-status" id="homeStatus">Etapa 1 de 9</div>
+          <div class="home-status" id="homeStatus">Carregando etapas…</div>
           <div class="account-actions">
             <span class="account-pill" id="accountEmail"></span>
             <a class="account-link hidden" id="editorLink" href="./editor.html">Editar</a>
@@ -43,21 +44,12 @@
       </div>
     </header>
 
-    <section class="journey" aria-label="Caminho de nove etapas">
+    <section class="journey" aria-label="Caminho das etapas de meditação">
       <svg class="journey-svg" viewBox="0 0 1000 1400" preserveAspectRatio="none" aria-hidden="true">
         <path class="path-shadow" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
         <path class="path-line" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
         <path class="path-glow" d="M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95"/>
       </svg>
-      <button class="stage" data-stage="1" style="left:26%; top:87.5%"><span>1</span></button>
-      <button class="stage future" data-stage="2" style="left:57%; top:80.5%"><span>2</span></button>
-      <button class="stage future" data-stage="3" style="left:66%; top:69.5%"><span>3</span></button>
-      <button class="stage future" data-stage="4" style="left:33%; top:61%"><span>4</span></button>
-      <button class="stage future" data-stage="5" style="left:27%; top:49%"><span>5</span></button>
-      <button class="stage future" data-stage="6" style="left:63%; top:43%"><span>6</span></button>
-      <button class="stage future" data-stage="7" style="left:73%; top:32%"><span>7</span></button>
-      <button class="stage future" data-stage="8" style="left:49%; top:22%"><span>8</span></button>
-      <button class="stage future" data-stage="9" style="left:76%; top:10%"><span>9</span></button>
       <div class="elephant" id="journeyElephant" style="left:26%; top:87.5%; transition:none" aria-hidden="true">🐘</div>
     </section>
 
@@ -86,18 +78,18 @@
   <div class="session-popup-backdrop hidden" id="sessionPopup" role="dialog" aria-modal="true" aria-live="polite"></div>
   <audio id="meditationAudio" preload="metadata"></audio>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20260825-0655"></script>
-<script src="./assets/supabase-backend.js?v=20260825-0655"></script>
-<script src="./assets/shamatha-extensions.js?v=20260825-0655"></script>
-<script src="./assets/runtime-v3.js?v=20260825-0655"></script>
-<script src="./assets/practice-ux.js?v=20260825-0655"></script>
-<script src="./assets/journey-replay.js?v=20260825-0655"></script>
-<script src="./assets/objective-preview.js?v=20260825-0655"></script>
-<script src="./assets/app.js?v=20260825-0655"></script>
-<script src="./assets/practice-audio-polish.js?v=20260825-0655"></script>
-<script src="./assets/app-cleanup.js?v=20260825-0910"></script>
-<script src="./assets/live-ui.js?v=20260825-0655"></script>
-<script src="./assets/pwa.js?v=20260825-0655"></script>
-<script src="./assets/header-reminder.js?v=20260825-0655"></script>
+<script src="./assets/config.js?v=20260825-1420"></script>
+<script src="./assets/supabase-backend.js?v=20260825-1420"></script>
+<script src="./assets/shamatha-extensions.js?v=20260825-1420"></script>
+<script src="./assets/runtime-v3.js?v=20260825-1420"></script>
+<script src="./assets/practice-ux.js?v=20260825-1420"></script>
+<script src="./assets/journey-replay.js?v=20260825-1420"></script>
+<script src="./assets/objective-preview.js?v=20260825-1420"></script>
+<script src="./assets/app.js?v=20260825-1420"></script>
+<script src="./assets/practice-audio-polish.js?v=20260825-1420"></script>
+<script src="./assets/app-cleanup.js?v=20260825-1420"></script>
+<script src="./assets/live-ui.js?v=20260825-1420"></script>
+<script src="./assets/pwa.js?v=20260825-1420"></script>
+<script src="./assets/header-reminder.js?v=20260825-1420"></script>
 </body>
 </html>
