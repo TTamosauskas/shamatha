@@ -1,18 +1,20 @@
-const CACHE = 'shamatha-shell-v9';
+const CACHE = 'shamatha-shell-v10';
 const SHELL = [
   './',
   './index.html',
-  './app.html?v=20260825-0635',
-  './assets/app.css?v=20260825-0635',
-  './assets/app-cleanup.css?v=20260825-0635',
-  './assets/practice-flow.css?v=20260825-0635',
-  './assets/header-reminder.css?v=20260825-0635',
-  './assets/practice-ux.js?v=20260825-0635',
-  './assets/journey-replay.js?v=20260825-0635',
-  './assets/app.js?v=20260825-0635',
-  './assets/practice-audio-polish.js?v=20260825-0635',
-  './assets/pwa.js?v=20260825-0635',
-  './assets/header-reminder.js?v=20260825-0635'
+  './app.html?v=20260825-0655',
+  './assets/app.css?v=20260825-0655',
+  './assets/app-cleanup.css?v=20260825-0655',
+  './assets/practice-flow.css?v=20260825-0655',
+  './assets/header-reminder.css?v=20260825-0655',
+  './assets/objective-preview.css?v=20260825-0655',
+  './assets/practice-ux.js?v=20260825-0655',
+  './assets/journey-replay.js?v=20260825-0655',
+  './assets/objective-preview.js?v=20260825-0655',
+  './assets/app.js?v=20260825-0655',
+  './assets/practice-audio-polish.js?v=20260825-0655',
+  './assets/pwa.js?v=20260825-0655',
+  './assets/header-reminder.js?v=20260825-0655'
 ];
 
 self.addEventListener('install', event => {
@@ -40,7 +42,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/app.html') || url.pathname.endsWith('/shamatha/')) {
-        return (await caches.match('./app.html?v=20260825-0635')) || Response.error();
+        return (await caches.match('./app.html?v=20260825-0655')) || Response.error();
       }
       return (await caches.match(request)) || (await caches.match('./index.html')) || Response.error();
     }
