@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#eaf7fd" />
   <title>Centro Pineal — Meditação</title>
-  <link rel="manifest" href="./manifest.webmanifest?v=20260825-0635" />
+  <link rel="manifest" href="./manifest.webmanifest?v=20260825-0655" />
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./assets/app.css?v=20260825-0635" />
-  <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260825-0635" />
-  <link rel="stylesheet" href="./assets/practice-flow.css?v=20260825-0635" />
-  <link rel="stylesheet" href="./assets/header-reminder.css?v=20260825-0635" />
+  <link rel="stylesheet" href="./assets/app.css?v=20260825-0655" />
+  <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260825-0655" />
+  <link rel="stylesheet" href="./assets/practice-flow.css?v=20260825-0655" />
+  <link rel="stylesheet" href="./assets/header-reminder.css?v=20260825-0655" />
+  <link rel="stylesheet" href="./assets/objective-preview.css?v=20260825-0655" />
 </head>
 <body>
   <main class="app-shell" id="appShell">
@@ -67,7 +68,7 @@
       </div>
       <h2 id="currentUnitName">Carregando caminho…</h2>
       <p id="currentObjective"></p>
-      <button class="primary" id="continuePath">Abrir etapa</button>
+      <button class="primary hidden" id="continuePath">Abrir etapa</button>
     </section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
@@ -85,17 +86,18 @@
   <div class="session-popup-backdrop hidden" id="sessionPopup" role="dialog" aria-modal="true" aria-live="polite"></div>
   <audio id="meditationAudio" preload="metadata"></audio>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20260825-0635"></script>
-<script src="./assets/supabase-backend.js?v=20260825-0635"></script>
-<script src="./assets/shamatha-extensions.js?v=20260825-0635"></script>
-<script src="./assets/runtime-v3.js?v=20260825-0635"></script>
-<script src="./assets/practice-ux.js?v=20260825-0635"></script>
-<script src="./assets/journey-replay.js?v=20260825-0635"></script>
-<script src="./assets/app.js?v=20260825-0635"></script>
-<script src="./assets/practice-audio-polish.js?v=20260825-0635"></script>
-<script src="./assets/app-cleanup.js?v=20260825-0635"></script>
-<script src="./assets/live-ui.js?v=20260825-0635"></script>
-<script src="./assets/pwa.js?v=20260825-0635"></script>
-<script src="./assets/header-reminder.js?v=20260825-0635"></script>
+<script src="./assets/config.js?v=20260825-0655"></script>
+<script src="./assets/supabase-backend.js?v=20260825-0655"></script>
+<script src="./assets/shamatha-extensions.js?v=20260825-0655"></script>
+<script src="./assets/runtime-v3.js?v=20260825-0655"></script>
+<script src="./assets/practice-ux.js?v=20260825-0655"></script>
+<script src="./assets/journey-replay.js?v=20260825-0655"></script>
+<script src="./assets/objective-preview.js?v=20260825-0655"></script>
+<script src="./assets/app.js?v=20260825-0655"></script>
+<script src="./assets/practice-audio-polish.js?v=20260825-0655"></script>
+<script src="./assets/app-cleanup.js?v=20260825-0655"></script>
+<script src="./assets/live-ui.js?v=20260825-0655"></script>
+<script src="./assets/pwa.js?v=20260825-0655"></script>
+<script src="./assets/header-reminder.js?v=20260825-0655"></script>
 </body>
 </html>
