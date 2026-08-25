@@ -348,7 +348,8 @@
     const after=journeySamples[low], before=journeySamples[Math.max(0,low-1)], span=Math.max(.0001,after.visualDistance-before.visualDistance);
     const local=Math.max(0,Math.min(1,(target-before.visualDistance)/span));
     const x=before.x+(after.x-before.x)*local, y=before.y+(after.y-before.y)*local;
-    return { left:(x/1000)*100, top:(y/1400)*100 };
+    const view=journeyViewBox();
+    return { left:(x/view.width)*100, top:(y/view.height)*100 };
   }
 
   function currentPosition() {
