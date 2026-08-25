@@ -1,0 +1,21 @@
+#currentObjective {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Evita um flash do texto na posição antiga antes de o JS movê-lo. */
+#unitScroll .unit-heading > p:not(.eyebrow) {
+  display: none;
+}
+
+#unitScroll .stage-objective {
+  display: block;
+  margin: 0 0 18px;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: normal;
+}
