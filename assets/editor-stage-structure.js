@@ -137,6 +137,11 @@
     });
   }
 
+  function clearDragClasses() {
+    dragStageId = null;
+    root.querySelectorAll('.stage-dragging,.stage-drop-target').forEach(item => item.classList.remove('stage-dragging','stage-drop-target'));
+  }
+
   function decorateDetails() {
     const stages = activeStages();
     root.querySelectorAll('[data-stage-details]').forEach(details => {
@@ -145,14 +150,13 @@
       if (!stage?.stageId) return;
 
       details.dataset.stageId = stage.stageId;
-      details.draggable = true;
 
       const form = details.querySelector('.stage-form');
       if (form && !form.querySelector('.stage-structure-bar')) {
         const bar = document.createElement('div');
         bar.className = 'stage-structure-bar';
         bar.innerHTML = `
-          <span class="stage-drag-handle" title="Arraste para reordenar" aria-hidden="true">↕ Arrastar</span>
+          <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
           <div class="stage-structure-actions">
             <button class="btn secondary small stage-order-btn move-stage-up" type="button" aria-label="Mover etapa para cima">↑</button>
             <button class="btn secondary small stage-order-btn move-stage-down" type="button" aria-label="Mover etapa para baixo">↓</button>
@@ -161,9 +165,25 @@
         form.insertBefore(bar, form.firstChild);
       }
 
+      const handle = form?.querySelector('.stage-drag-handle');
       const up = form?.querySelector('.move-stage-up');
       const down = form?.querySelector('.move-stage-down');
       const remove = form?.querySelector('.stage-remove-btn');
+
+      if (handle) {
+        handle.draggable = true;
+        if (!handle.dataset.dragBound) {
+          handle.dataset.dragBound = '1';
+          handle.addEventListener('dragstart', event => {
+            dragStageId = details.dataset.stageId;
+            details.classList.add('stage-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            try { event.dataTransfer.setData('text/plain', dragStageId); } catch (_) {}
+          });
+          handle.addEventListener('dragend', clearDragClasses);
+        }
+      }
+
       if (up) {
         up.disabled = position <= 1;
         up.onclick = () => moveStage(stage.stageId, -1);
@@ -177,19 +197,8 @@
         remove.onclick = () => archiveStage(stage);
       }
 
-      if (!details.dataset.dragBound) {
-        details.dataset.dragBound = '1';
-        details.addEventListener('dragstart', event => {
-          const handle = event.target.closest?.('.stage-drag-handle');
-          if (!handle) {
-            event.preventDefault();
-            return;
-          }
-          dragStageId = details.dataset.stageId;
-          details.classList.add('stage-dragging');
-          event.dataTransfer.effectAllowed = 'move';
-          try { event.dataTransfer.setData('text/plain', dragStageId); } catch (_) {}
-        });
+      if (!details.dataset.dropBound) {
+        details.dataset.dropBound = '1';
         details.addEventListener('dragover', event => {
           if (!dragStageId || dragStageId === details.dataset.stageId) return;
           event.preventDefault();
@@ -202,12 +211,8 @@
           details.classList.remove('stage-drop-target');
           const source = dragStageId || event.dataTransfer.getData('text/plain');
           const target = details.dataset.stageId;
-          dragStageId = null;
+          clearDragClasses();
           if (source && target && source !== target) moveStageTo(source, target);
-        });
-        details.addEventListener('dragend', () => {
-          dragStageId = null;
-          root.querySelectorAll('.stage-dragging,.stage-drop-target').forEach(item => item.classList.remove('stage-dragging','stage-drop-target'));
         });
       }
     });
