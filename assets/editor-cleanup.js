@@ -89,7 +89,7 @@
   }
 
   function removeEmptyGroups(form) {
-    form.querySelectorAll('.three').forEach(group => {
+    form.querySelectorAll('.three,.editor-rule-grid').forEach(group => {
       if (!group.querySelector('.field')) group.remove();
     });
   }
@@ -107,17 +107,13 @@
     const submit = form.querySelector('button[type="submit"]');
     const submitField = submit?.closest('.field');
 
-    if (unitField) {
-      const group = unitField.parentElement;
-      if (group?.classList.contains('three')) group.parentElement.insertBefore(unitField, group);
-    }
-
-    if (sessionsField && deadlineField) {
-      const ruleGrid = document.createElement('div');
-      ruleGrid.className = 'editor-rule-grid-cleanup';
-      const anchor = unitField?.nextSibling || form.firstChild;
-      form.insertBefore(ruleGrid, anchor);
-      ruleGrid.append(sessionsField, deadlineField);
+    if (unitField && sessionsField && deadlineField) {
+      const row = document.createElement('div');
+      row.className = 'editor-stage-rule-row';
+      form.insertBefore(row, unitField);
+      sessionsField.classList.add('compact-number-field');
+      deadlineField.classList.add('compact-number-field');
+      row.append(unitField, sessionsField, deadlineField);
     }
 
     if (submit) {
