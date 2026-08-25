@@ -41,12 +41,7 @@
       const field = input?.closest('.field');
       const label = field?.querySelector('label');
       if (label && label.textContent !== 'Janela de prática (dias)') label.textContent = 'Janela de prática (dias)';
-      if (field && !field.querySelector('.rolling-window-help')) {
-        const help = document.createElement('small');
-        help.className = 'field-help rolling-window-help';
-        help.textContent = 'A meta considera os últimos N dias. N dias sem nenhuma sessão válida fazem o aluno recuar uma etapa.';
-        field.appendChild(help);
-      }
+      field?.querySelectorAll('.rolling-window-help').forEach(help => help.remove());
     });
   }
 

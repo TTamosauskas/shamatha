@@ -6,7 +6,7 @@
   <title>Centro Pineal — Editor</title>
   <link rel="stylesheet" href="./assets/site.css?v=20260824-1257">
   <link rel="stylesheet" href="./assets/editor-v2.css?v=20260824-1257">
-  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260824-1257">
+  <link rel="stylesheet" href="./assets/editor-cleanup.css?v=20260825-0920">
 </head>
 <body>
   <main class="shell">
@@ -21,7 +21,7 @@
     <section class="grid">
       <div class="card">
         <div class="section-head">
-          <div><h2>Liberação de acesso</h2><p>Adicione o e-mail. Novos usuários entram como Aluno e Pendente; use o ícone de convite na lista para copiar o link.</p></div>
+          <div><h2>Liberação de acesso</h2></div>
         </div>
         <form id="inviteForm" class="invite-grid invite-grid-simple">
           <div class="field invite-email"><label for="inviteEmail">E-mail</label><input id="inviteEmail" type="email" placeholder="aluno@exemplo.com" required></div>
@@ -38,7 +38,7 @@
 
       <div class="card">
         <div class="section-head">
-          <div><h2>Aula ao vivo</h2><p>Agende usando o horário de Curitiba ou use Agora para liberar a sala imediatamente e avisar os alunos por Push.</p></div>
+          <div><h2>Aula ao vivo</h2></div>
         </div>
         <form id="liveClassForm">
           <div class="field"><label for="liveClassUrl">Link exato da aula ao vivo</label><input id="liveClassUrl" type="url" value="https://us06web.zoom.us/j/84674720127" placeholder="https://us06web.zoom.us/j/..." required></div>
@@ -54,8 +54,11 @@
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Usuários cadastrados</h2><p>Altere função e estado diretamente na linha do usuário. O convite aparece enquanto a conta ainda não foi confirmada.</p></div>
+        <div><h2>Usuários cadastrados</h2></div>
         <span class="badge" id="userCount">0 usuários</span>
+      </div>
+      <div class="user-list-tools">
+        <input id="userSearch" type="search" inputmode="search" placeholder="Buscar usuário por e-mail" aria-label="Buscar usuário por e-mail">
       </div>
       <div class="table-wrap">
         <table>
@@ -63,11 +66,16 @@
           <tbody id="usersBody"></tbody>
         </table>
       </div>
+      <div class="user-pagination" aria-label="Paginação de usuários">
+        <button class="btn secondary small" id="userPagePrev" type="button" aria-label="Página anterior">Anterior</button>
+        <span id="userPageLabel">0 usuários</span>
+        <button class="btn secondary small" id="userPageNext" type="button" aria-label="Próxima página">Próxima</button>
+      </div>
     </section>
 
     <section class="card" style="margin-top:20px">
       <div class="section-head">
-        <div><h2>Conteúdo das 9 etapas</h2><p>Defina vídeo, áudio, objetivo, número de sessões e a janela móvel de cada etapa. O aluno avança ao cumprir a meta dentro dos últimos N dias e recua uma etapa após N dias consecutivos sem nenhuma sessão válida.</p></div>
+        <div><h2>Conteúdo das 9 etapas</h2></div>
       </div>
       <div id="stages"></div>
     </section>
@@ -78,7 +86,8 @@
 <script src="./assets/shamatha-extensions.js?v=20260824-1257"></script>
 <script src="./assets/runtime-v3.js?v=20260824-1257"></script>
 <script src="./assets/editor-v2.js?v=20260824-1257"></script>
-<script src="./assets/editor-cleanup.js?v=20260825-0910"></script>
-<script src="./assets/editor-enhancements.js?v=20260824-1257"></script>
+<script src="./assets/editor-cleanup.js?v=20260825-0920"></script>
+<script src="./assets/editor-enhancements.js?v=20260825-0920"></script>
+<script src="./assets/editor-users-pagination.js?v=20260825-0920"></script>
 </body>
 </html>
