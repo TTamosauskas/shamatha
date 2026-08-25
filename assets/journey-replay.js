@@ -14,7 +14,6 @@
     elephant.style.transition = 'none';
     elephant.style.left = '26%';
     elephant.style.top = '87.5%';
-    elephant.style.setProperty('--face', '-1');
   }
 
   function buildSamples() {
@@ -78,6 +77,14 @@
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
+  function finishAt(targetLeft, targetTop) {
+    elephant.style.left = `${targetLeft}%`;
+    elephant.style.top = `${targetTop}%`;
+    elephant.classList.remove('walking', 'journey-elephant-replay');
+    elephant.style.transition = '';
+    replayDone = true;
+  }
+
   function replayTo(targetLeft, targetTop) {
     if (replayDone || replayStarted) return;
     replayStarted = true;
@@ -91,12 +98,12 @@
     elephant.classList.add('walking', 'journey-elephant-replay');
     void elephant.offsetWidth;
 
-    if (targetIndex <= 2 || targetDistance <= 1) {
-      elephant.style.left = `${targetLeft}%`;
-      elephant.style.top = `${targetTop}%`;
-      elephant.classList.remove('walking', 'journey-elephant-replay');
-      elephant.style.transition = '';
-      replayDone = true;
+    if (
+      targetIndex <= 2 ||
+      targetDistance <= 1 ||
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      finishAt(targetLeft, targetTop);
       return;
     }
 
@@ -123,11 +130,7 @@
         return;
       }
 
-      elephant.style.left = `${targetLeft}%`;
-      elephant.style.top = `${targetTop}%`;
-      elephant.classList.remove('walking', 'journey-elephant-replay');
-      elephant.style.transition = '';
-      replayDone = true;
+      finishAt(targetLeft, targetTop);
     };
 
     requestAnimationFrame(frame);
@@ -137,10 +140,6 @@
 
   observer = new MutationObserver(() => {
     if (replayDone || replayStarted) return;
-    const left = Number.parseFloat(elephant.style.left);
-    const top = Number.parseFloat(elephant.style.top);
-    if (!Number.isFinite(left) || !Number.isFinite(top)) return;
-    if (Math.abs(left - 26) < 0.01 && Math.abs(top - 87.5) < 0.01) return;
     queueMicrotask(() => {
       const targetLeft = Number.parseFloat(elephant.style.left);
       const targetTop = Number.parseFloat(elephant.style.top);
@@ -148,5 +147,7 @@
     });
   });
 
-  observer.observe(elephant, { attributes:true, attributeFilter:['style'] });
+  // app.js atualiza posição e classe quando os dados de progresso chegam. Observar
+  // ambos garante que até 0/Meta na etapa 1 finalize corretamente o estado inicial.
+  observer.observe(elephant, { attributes:true, attributeFilter:['style', 'class'] });
 })();
