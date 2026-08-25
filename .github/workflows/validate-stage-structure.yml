@@ -1,0 +1,27 @@
+name: Validate stage structure
+
+on:
+  push:
+    branches: [stage-reorder-archive]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: |
+          node --check assets/stage-identity.js
+          node --check assets/editor-stage-structure.js
+          node --check assets/editor-dynamic-stages.js
+          node --check assets/app.js
+      - name: Check wiring
+        run: |
+          grep -q 'stage-identity.js?v=20260825-1935' app.html
+          grep -q 'stage-identity.js?v=20260825-1935' editor.html
+          grep -q 'editor-stage-structure.js?v=20260825-1935' editor.html
+          grep -q "shamatha-shell-v13" service-worker.js
+          grep -q 'stage_id uuid' supabase/migrations/20260825223615_stage_identity_reorder_archive.sql
