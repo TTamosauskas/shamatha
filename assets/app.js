@@ -13,7 +13,9 @@
     objective: document.getElementById('currentObjective'),
     miniProgress: document.getElementById('miniProgress'),
     elephant: document.getElementById('journeyElephant'),
-    stages: [...document.querySelectorAll('.stage')],
+    journey: document.querySelector('.journey'),
+    journeySvg: document.querySelector('.journey-svg'),
+    stages: [],
     toast: document.getElementById('toast'),
     sessionPopup: document.getElementById('sessionPopup'),
     audio: document.getElementById('meditationAudio'),
@@ -41,9 +43,10 @@
   let endControlPinned = false;
 
   const DAY_MS = 86400000;
-  const stagePositions = {
-    1:{left:26,top:87.5},2:{left:57,top:80.5},3:{left:66,top:69.5},4:{left:33,top:61},5:{left:27,top:49},6:{left:63,top:43},7:{left:73,top:32},8:{left:49,top:22},9:{left:76,top:10}
-  };
+  const BASE_JOURNEY_PATH = 'M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95';
+  const stagePositions = { 1:{left:26,top:87.5} };
+  function totalStages() { return Math.max(1, Math.min(30, Number(appData?.stages?.length || 1))); }
+  function lastStage() { return totalStages(); }
 
   async function api(path, options = {}) {
     try {
@@ -162,7 +165,7 @@
     if (st.completedAt) return { completed:false, advanced:false };
     st.completedAt = Date.now();
     let advanced = false;
-    if (stage === progress.currentStage && progress.currentStage < 9) {
+    if (stage === progress.currentStage && progress.currentStage < lastStage()) {
       progress.currentStage += 1;
       advanced = true;
     }
@@ -180,7 +183,7 @@
 
     const to = from - 1;
     progress.currentStage = to;
-    for (let stage = to; stage <= 9; stage += 1) stageState(stage).completedAt = null;
+    for (let stage = to; stage <= lastStage(); stage += 1) stageState(stage).completedAt = null;
     progress.inactivityAnchorAt = Date.now();
     refreshWindowFlags(to);
     saveProgress({ immediate:true });
@@ -229,13 +232,96 @@
     showPracticeEndControl({ hideAfter:2400 });
   }
 
+  function journeyViewBox() {
+    const box = el.journeySvg?.viewBox?.baseVal;
+    return {
+      width: Number(box?.width || 1000),
+      height: Number(box?.height || 1400)
+    };
+  }
+
+  function catmullRomPath(points) {
+    if (points.length < 2) return '';
+    let d = `M${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x} ${p2.y}`;
+    }
+    return d;
+  }
+
+  function journeyGeometry() {
+    const total = totalStages();
+    if (total <= 9) return { path:BASE_JOURNEY_PATH, viewHeight:1400, extraCurves:0 };
+    const extraCurves = Math.ceil((total - 9) / 4);
+    const turns = 4 + extraCurves;
+    const viewHeight = 1400 + extraCurves * 420;
+    const bottom = viewHeight - 175;
+    const top = 95;
+    const usable = bottom - top;
+    const points = [{ x:260, y:bottom }];
+    for (let i = 1; i <= turns; i += 1) {
+      points.push({
+        x: i % 2 ? 735 : 250,
+        y: Math.round(bottom - usable * (i / (turns + 1)))
+      });
+    }
+    points.push({ x:760, y:top });
+    return { path:catmullRomPath(points), viewHeight, extraCurves };
+  }
+
+  function renderStageMarkers() {
+    if (!el.journey) return;
+    el.journey.querySelectorAll('.stage').forEach(button => button.remove());
+    const fragment = document.createDocumentFragment();
+    for (let stage = 1; stage <= totalStages(); stage += 1) {
+      const button = document.createElement('button');
+      button.className = 'stage future';
+      button.type = 'button';
+      button.dataset.stage = String(stage);
+      button.setAttribute('aria-label', `Abrir etapa ${stage}`);
+      button.innerHTML = `<span>${stage}</span>`;
+      fragment.appendChild(button);
+    }
+    el.journey.insertBefore(fragment, el.elephant);
+    el.stages = [...el.journey.querySelectorAll('.stage')];
+  }
+
+  function configureJourneyGeometry() {
+    if (!el.journeySvg) return;
+    const geometry = journeyGeometry();
+    el.journeySvg.setAttribute('viewBox', `0 0 1000 ${geometry.viewHeight}`);
+    document.querySelectorAll('.path-shadow,.path-line,.path-glow').forEach(path => path.setAttribute('d', geometry.path));
+    const shell = document.getElementById('appShell');
+    if (geometry.extraCurves > 0) {
+      const height = Math.max(window.innerHeight, window.innerHeight + geometry.extraCurves * 320);
+      shell?.classList.add('dynamic-journey');
+      document.body.classList.add('dynamic-journey-scroll');
+      shell?.style.setProperty('--journey-height', `${height}px`);
+    } else {
+      shell?.classList.remove('dynamic-journey');
+      document.body.classList.remove('dynamic-journey-scroll');
+      shell?.style.removeProperty('--journey-height');
+      window.scrollTo(0, 0);
+    }
+    renderStageMarkers();
+  }
+
   function rebuildUniformJourneyLayout() {
     const path = document.querySelector('.path-line');
-    const svg = document.querySelector('.journey-svg');
+    const svg = el.journeySvg;
     if (!path || !svg || typeof path.getTotalLength !== 'function') return;
     const rect = svg.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const pathLength = path.getTotalLength(), sampleCount = 900, scaleX = rect.width/1000, scaleY = rect.height/1400;
+    const view = journeyViewBox();
+    const pathLength = path.getTotalLength(), sampleCount = Math.max(900, totalStages() * 80), scaleX = rect.width/view.width, scaleY = rect.height/view.height;
     let visualDistance = 0, previous = null;
     const samples = [];
     for (let i=0;i<=sampleCount;i+=1) {
@@ -244,8 +330,9 @@
       samples.push({ length, x:point.x, y:point.y, visualDistance }); previous = point;
     }
     journeySamples = samples; journeyVisualLength = visualDistance;
-    for (let stage=1; stage<=9; stage+=1) {
-      const pos = pointOnJourneyVisual((stage-1)/8); stagePositions[stage] = pos;
+    const total = totalStages(), denominator = Math.max(1, total - 1);
+    for (let stage=1; stage<=total; stage+=1) {
+      const pos = pointOnJourneyVisual((stage-1)/denominator); stagePositions[stage] = pos;
       const button = el.stages.find(item => Number(item.dataset.stage) === stage);
       if (button) { button.style.left=`${pos.left}%`; button.style.top=`${pos.top}%`; }
     }
@@ -254,21 +341,23 @@
   function pointOnJourneyVisual(progressRatio) {
     const ratio = Math.max(0,Math.min(1,Number(progressRatio || 0)));
     if (!journeySamples.length || !journeyVisualLength) {
-      const a=stagePositions[1], b=stagePositions[9]; return { left:a.left+(b.left-a.left)*ratio, top:a.top+(b.top-a.top)*ratio };
+      const a=stagePositions[1] || {left:26,top:87.5}, b=stagePositions[lastStage()] || a; return { left:a.left+(b.left-a.left)*ratio, top:a.top+(b.top-a.top)*ratio };
     }
     const target=journeyVisualLength*ratio; let low=0, high=journeySamples.length-1;
     while(low<high){const mid=Math.floor((low+high)/2); if(journeySamples[mid].visualDistance<target) low=mid+1; else high=mid;}
     const after=journeySamples[low], before=journeySamples[Math.max(0,low-1)], span=Math.max(.0001,after.visualDistance-before.visualDistance);
     const local=Math.max(0,Math.min(1,(target-before.visualDistance)/span));
     const x=before.x+(after.x-before.x)*local, y=before.y+(after.y-before.y)*local;
-    return { left:(x/1000)*100, top:(y/1400)*100 };
+    const view=journeyViewBox();
+    return { left:(x/view.width)*100, top:(y/view.height)*100 };
   }
 
   function currentPosition() {
-    const stage = progress.currentStage;
-    if (stage >= 9 && stageState(9).completedAt) return { ...stagePositions[9], stage:9 };
+    const stage = progress.currentStage, total = totalStages(), last = lastStage();
+    if (total <= 1) return { ...(stagePositions[1] || {left:26,top:87.5}), stage:1 };
+    if (stage >= last && stageState(last).completedAt) return { ...stagePositions[last], stage:last };
     const cfg = config(stage), count = completedCount(stage), ratio = Math.max(0, Math.min(1, count/cfg.sessionsRequired));
-    const pathRatio = ((stage-1)+ratio)/8;
+    const pathRatio = ((stage-1)+ratio)/Math.max(1,total-1);
     return { ...pointOnJourneyVisual(pathRatio), stage };
   }
 
@@ -282,12 +371,13 @@
     }
 
     const current = progress.currentStage;
-    const cfg = config(current), count = completedCount(current), allDone = current === 9 && Boolean(stageState(9).completedAt);
+    const last = lastStage(), total = totalStages();
+    const cfg = config(current), count = completedCount(current), allDone = current === last && Boolean(stageState(last).completedAt);
     const pos = currentPosition();
     el.elephant.style.left = `${pos.left}%`; el.elephant.style.top = `${pos.top}%`;
-    const nextPos = stagePositions[Math.min(9,current+1)], face = nextPos && nextPos.left > pos.left ? -1 : 1;
+    const nextPos = stagePositions[Math.min(last,current+1)], face = nextPos && nextPos.left > pos.left ? -1 : 1;
     el.elephant.style.setProperty('--face', face);
-    el.elephant.className = `elephant stage-${current}${animateAdvance ? ' walking journey-elephant-progress-glow' : ''}`;
+    el.elephant.className = `elephant stage-${current}${current >= 6 ? ' stage-late' : ''}${animateAdvance ? ' walking journey-elephant-progress-glow' : ''}`;
     if (animateAdvance) setTimeout(()=>el.elephant.classList.remove('walking','journey-elephant-progress-glow'),1900);
 
     el.stages.forEach(btn => {
@@ -296,11 +386,15 @@
       btn.setAttribute('aria-disabled', n > current ? 'true' : 'false');
     });
 
-    el.homeStatus.textContent = allDone ? 'Caminho concluído' : `Etapa ${current} de 9`;
+    el.homeStatus.textContent = allDone ? 'Caminho concluído' : `Etapa ${current} de ${total}`;
     el.unitName.textContent = `Etapa ${current} – ${cfg.unitName}`;
     el.objective.textContent = cfg.objective || '';
-    el.miniProgress.textContent = allDone ? '9 etapas concluídas' : `${count}/${cfg.sessionsRequired} · últimos ${cfg.deadlineDays} dias`;
-    el.continuePath.textContent = allDone ? 'Rever etapa 9' : 'Abrir etapa';
+    el.miniProgress.textContent = allDone ? `${total} etapas concluídas` : `${count}/${cfg.sessionsRequired} · ${cfg.deadlineDays} dias`;
+    el.continuePath.textContent = allDone ? `Rever etapa ${last}` : 'Abrir etapa';
+    if (animateAdvance && document.getElementById('appShell')?.classList.contains('dynamic-journey')) {
+      const targetY = Math.max(0, (pos.top / 100) * document.getElementById('appShell').offsetHeight - window.innerHeight * .48);
+      window.scrollTo({ top:targetY, behavior:'smooth' });
+    }
   }
 
   function setToolbar() {
@@ -501,16 +595,18 @@
   el.close.addEventListener('click',closeUnit);
   el.modal.addEventListener('click',event=>{if(event.target===el.modal&&!['active','countdown'].includes(sessionState))closeUnit();});
 
-  el.stages.forEach(btn=>btn.addEventListener('click',()=>{
+  el.journey?.addEventListener('click',event=>{
+    const btn=event.target.closest('.stage');
+    if(!btn || !el.journey.contains(btn) || !progress)return;
     const stage=Number(btn.dataset.stage), current=progress.currentStage;
     if(stage>current){showToast(`A etapa ${stage} será liberada pelo avanço nas etapas anteriores.`);return;}
     selectedStage=stage;
     openUnit(stageState().introDone?'practice':'intro');
-  }));
+  });
 
   el.logout.addEventListener('click',async()=>{await api('/api/logout',{method:'POST',body:'{}'}).catch(()=>null);location.href='./index.html';});
   window.addEventListener('beforeunload',()=>{if(['active','countdown'].includes(sessionState))saveActiveSession();clearInterval(progressWatchTimer);clearTimeout(endControlTimer);});
-  window.addEventListener('resize',()=>{clearTimeout(journeyLayoutTimer);journeyLayoutTimer=setTimeout(()=>{rebuildUniformJourneyLayout();updateHome();},120);});
+  window.addEventListener('resize',()=>{clearTimeout(journeyLayoutTimer);journeyLayoutTimer=setTimeout(()=>{configureJourneyGeometry();rebuildUniformJourneyLayout();updateHome();},120);});
 
   async function init() {
     appData=await api('/api/app-data'); progress=appData.progress;
@@ -518,7 +614,7 @@
     if(appData.user.role==='editor')el.editorLink.classList.remove('hidden');
     const live=String(appData.settings.liveClassUrl||'').trim();
     if(live){el.liveClassBadge.href=live;el.liveClassBadge.classList.remove('hidden');el.liveClassBadge.setAttribute('aria-label',`Abrir aula ao vivo: ${live}`);}else{el.liveClassBadge.classList.add('hidden');}
-    selectedStage=progress.currentStage; rebuildUniformJourneyLayout(); updateHome(); recoveredSessionPending=recoverInterruptedSession();
+    selectedStage=progress.currentStage; configureJourneyGeometry(); rebuildUniformJourneyLayout(); updateHome(); recoveredSessionPending=recoverInterruptedSession();
     progressWatchTimer=setInterval(()=>{if(progress && el.modal.classList.contains('hidden'))updateHome();},60000);
   }
 
