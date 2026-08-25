@@ -1,7 +1,7 @@
-const CACHE = 'shamatha-shell-v10';
+const CACHE = 'shamatha-shell-v11';
 const SHELL = [
   './',
-  './index.html',
+  './index.html?v=20260825-1135',
   './app.html?v=20260825-0655',
   './assets/app.css?v=20260825-0655',
   './assets/app-cleanup.css?v=20260825-0655',
@@ -31,7 +31,7 @@ self.addEventListener('activate', event => {
 });
 
 // Navegações sempre tentam a rede primeiro. Isso evita que uma PWA instalada
-// continue abrindo um app.html antigo depois de uma atualização.
+// continue abrindo HTML antigo depois de uma atualização.
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET' || request.mode !== 'navigate') return;
@@ -41,10 +41,13 @@ self.addEventListener('fetch', event => {
       return await fetch(request, { cache:'no-store' });
     } catch (_) {
       const url = new URL(request.url);
-      if (url.pathname.endsWith('/app.html') || url.pathname.endsWith('/shamatha/')) {
+      if (url.pathname.endsWith('/app.html')) {
         return (await caches.match('./app.html?v=20260825-0655')) || Response.error();
       }
-      return (await caches.match(request)) || (await caches.match('./index.html')) || Response.error();
+      if (url.pathname.endsWith('/shamatha/') || url.pathname.endsWith('/index.html')) {
+        return (await caches.match('./index.html?v=20260825-1135')) || Response.error();
+      }
+      return (await caches.match(request)) || (await caches.match('./index.html?v=20260825-1135')) || Response.error();
     }
   })());
 });
