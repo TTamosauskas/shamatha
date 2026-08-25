@@ -3,6 +3,8 @@ const status = $('status');
 const loginForm = $('loginForm');
 const registerForm = $('registerForm');
 const invitePasswordForm = $('invitePasswordForm');
+let passwordFlow = 'invite';
+let recoveryActive = false;
 
 function setStatus(message, kind = '') {
   status.textContent = message;
@@ -41,25 +43,38 @@ function routeUser(user) {
   }
 }
 
-function showInvitePassword(email) {
+function showPasswordForm(email, mode = 'invite') {
+  passwordFlow = mode;
+  if (mode === 'recovery') recoveryActive = true;
   document.querySelector('.tabs').classList.add('hidden');
   loginForm.classList.add('hidden');
   registerForm.classList.add('hidden');
   invitePasswordForm.classList.remove('hidden');
   $('pendingActions').classList.add('hidden');
-  setStatus(`Convite aceito para ${email}. Escolha sua senha para concluir a conta.`, 'good');
+  $('passwordFlowMessage').textContent = mode === 'recovery'
+    ? `Redefinição autorizada para ${email}. Escolha sua nova senha.`
+    : `Convite aceito para ${email}. Escolha sua senha para concluir a conta.`;
+  setStatus(mode === 'recovery' ? 'Escolha e confirme sua nova senha.' : `Convite aceito para ${email}. Escolha sua senha para concluir a conta.`, 'good');
 }
 
 async function detectInvitation() {
+  if (recoveryActive) return true;
   const sb = window.ShamathaBackend.getClient();
   await sb.auth.getSession();
   const { data } = await sb.auth.getUser();
   const user = data?.user;
   if (user?.user_metadata?.shamatha_invited === true) {
-    showInvitePassword(user.email || 'seu e-mail');
+    showPasswordForm(user.email || 'seu e-mail', 'invite');
     return true;
   }
   return false;
+}
+
+function recoveryRedirectUrl() {
+  const url = new URL('./', location.href);
+  url.hash = '';
+  url.search = '';
+  return url.href;
 }
 
 $('loginTab').addEventListener('click', () => selectTab('login'));
@@ -72,6 +87,28 @@ loginForm.addEventListener('submit', async event => {
     if (await detectInvitation()) return;
     routeUser(data.user);
   } catch (error) { setStatus(error.message, 'bad'); }
+});
+
+$('forgotPassword').addEventListener('click', async () => {
+  const input = $('loginEmail');
+  if (!input.checkValidity()) {
+    input.reportValidity();
+    return;
+  }
+  const button = $('forgotPassword');
+  button.disabled = true;
+  try {
+    const sb = window.ShamathaBackend.getClient();
+    const { error } = await sb.auth.resetPasswordForEmail(String(input.value || '').trim(), {
+      redirectTo: recoveryRedirectUrl()
+    });
+    if (error) throw error;
+    setStatus('Se o e-mail estiver cadastrado, você receberá um link para definir uma nova senha.', 'good');
+  } catch (error) {
+    setStatus(error?.message || 'Não foi possível solicitar a redefinição de senha.', 'bad');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 registerForm.addEventListener('submit', async event => {
@@ -99,14 +136,15 @@ invitePasswordForm.addEventListener('submit', async event => {
   try {
     const sb = window.ShamathaBackend.getClient();
     const { data: userData } = await sb.auth.getUser();
-    const metadata = { ...(userData?.user?.user_metadata || {}), shamatha_invited:false };
+    if (!userData?.user) throw new Error('Sessão de definição de senha encerrada. Solicite um novo link.');
+    const metadata = { ...(userData.user.user_metadata || {}), shamatha_invited:false };
     const { error } = await sb.auth.updateUser({ password, data:metadata });
     if (error) throw error;
     const data = await api('/api/me');
-    if (!data.user) throw new Error('Sessão do convite encerrada. Entre novamente.');
+    if (!data.user) throw new Error('Sessão encerrada. Entre novamente com a nova senha.');
     routeUser(data.user);
   } catch (error) {
-    setStatus(error.message || 'Falha ao definir a senha.', 'bad');
+    setStatus(error.message || (passwordFlow === 'recovery' ? 'Falha ao redefinir a senha.' : 'Falha ao definir a senha.'), 'bad');
     button.disabled = false;
   }
 });
@@ -124,6 +162,12 @@ $('logoutPending').addEventListener('click', async () => {
     return;
   }
   try {
+    const sb = window.ShamathaBackend.getClient();
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        showPasswordForm(session?.user?.email || 'seu e-mail', 'recovery');
+      }
+    });
     if (await detectInvitation()) return;
     const data = await api('/api/me');
     if (data.user) routeUser(data.user);

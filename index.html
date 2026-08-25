@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Centro Pineal — Acesso</title>
   <meta name="theme-color" content="#eaf7fd">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260825-1135">
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/site.css">
+  <link rel="stylesheet" href="./assets/site.css?v=20260825-1135">
 </head>
 <body>
   <main class="auth-wrap">
@@ -25,6 +25,7 @@
         <div class="field"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="email" required></div>
         <div class="field"><label for="loginPassword">Senha</label><input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required></div>
         <button class="btn primary" style="width:100%" type="submit">Entrar</button>
+        <button class="btn secondary small" style="width:100%;margin-top:8px" id="forgotPassword" type="button">Esqueci minha senha</button>
       </form>
 
       <form id="registerForm" class="hidden">
@@ -34,7 +35,7 @@
       </form>
 
       <form id="invitePasswordForm" class="hidden">
-        <div class="status good" style="margin-bottom:14px">Convite aceito. Defina uma senha para concluir sua conta.</div>
+        <div class="status good" id="passwordFlowMessage" style="margin-bottom:14px">Defina uma senha para concluir sua conta.</div>
         <div class="field"><label for="invitePassword">Nova senha</label><input id="invitePassword" type="password" autocomplete="new-password" minlength="8" required></div>
         <div class="field"><label for="invitePasswordConfirm">Confirmar senha</label><input id="invitePasswordConfirm" type="password" autocomplete="new-password" minlength="8" required></div>
         <button class="btn primary" style="width:100%" type="submit">Definir senha e continuar</button>
@@ -47,9 +48,9 @@
     </section>
   </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js"></script>
-<script src="./assets/supabase-backend.js"></script>
-<script src="./assets/shamatha-extensions.js"></script>
-<script src="./assets/login.js"></script>
+<script src="./assets/config.js?v=20260825-1135"></script>
+<script src="./assets/supabase-backend.js?v=20260825-1135"></script>
+<script src="./assets/shamatha-extensions.js?v=20260825-1135"></script>
+<script src="./assets/login.js?v=20260825-1135"></script>
 </body>
 </html>
