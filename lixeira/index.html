@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Centro Pineal — Lixeira</title>
+  <link rel="stylesheet" href="../assets/site.css?v=20260826-1040">
+  <link rel="stylesheet" href="../assets/lixeira.css?v=20260826-1040">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><small>PAINEL DO EDITOR</small><strong>Lixeira</strong></div>
+      <div class="toolbar">
+        <a class="btn secondary small" href="../editor.html">Voltar ao editor</a>
+        <button class="btn secondary small" id="logout" type="button">Sair</button>
+      </div>
+    </header>
+
+    <section class="card trash-card">
+      <div class="section-head">
+        <div><h2>Etapas removidas</h2></div>
+        <span class="badge" id="trashCount">0 etapas</span>
+      </div>
+      <div id="trashStatus" class="status hidden" role="status" aria-live="polite"></div>
+      <div id="trashEmpty" class="trash-empty hidden">Nenhuma etapa removida.</div>
+      <div id="trashList" class="trash-list"></div>
+    </section>
+  </main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/config.js?v=20260826-0955"></script>
+<script src="../assets/supabase-backend.js?v=20260826-0955"></script>
+<script src="../assets/shamatha-extensions.js?v=20260826-0955"></script>
+<script src="../assets/stage-identity.js?v=20260826-0955"></script>
+<script src="../assets/runtime-v3.js?v=20260826-0955"></script>
+<script src="../assets/lixeira.js?v=20260826-1040"></script>
+</body>
+</html>
