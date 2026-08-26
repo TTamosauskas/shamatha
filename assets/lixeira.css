@@ -1,0 +1,9 @@
+.trash-card{margin-top:20px}
+.trash-list{display:grid;gap:10px}
+.trash-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid rgba(31,45,58,.12);border-radius:14px;background:rgba(245,247,248,.72)}
+.trash-row-main{min-width:0}
+.trash-row strong{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trash-row small{display:block;margin-top:4px;color:#77828d}
+.trash-empty{padding:24px 0;text-align:center;color:#77828d}
+.trash-empty.hidden{display:none!important}
+@media(max-width:640px){.trash-row{align-items:stretch;flex-direction:column}.trash-row .btn{width:100%}}
