@@ -150,7 +150,7 @@
       ...meta,
       schemaVersion: 2,
       currentStageId: activeStages[requested - 1]?.stageId || null,
-      stagesById,
+      stagesById: statesById,
       updatedAt: Number(runtimeSource.updatedAt || Date.now())
     };
   }
