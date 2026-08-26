@@ -1,0 +1,94 @@
+from pathlib import Path
+
+
+def replace(path, old, new):
+    p = Path(path)
+    s = p.read_text()
+    if old not in s:
+        raise SystemExit(f'pattern not found in {path}: {old[:80]!r}')
+    p.write_text(s.replace(old, new))
+
+
+replace('assets/app.js', "    if (appData.user.role === 'editor') return Promise.resolve();\n", '')
+replace('assets/app.js', "    if (from <= 1 || appData.user.role === 'editor') return { regressed:false };", "    if (from <= 1) return { regressed:false };")
+replace('assets/app.js', "    if ((refreshed.changed || completed) && appData.user.role !== 'editor') saveProgress({ immediate:true });", "    if (refreshed.changed || completed) saveProgress({ immediate:true });")
+replace('assets/stage-identity.js', "    if (data.user?.role === 'editor') {\n      data.progress = persistentToRuntime({}, merged.active, identities);\n      return data;\n    }\n\n", '')
+
+p = Path('assets/editor-stage-structure.js')
+s = p.read_text()
+old = '''      const form = details.querySelector('.stage-form');
+      if (form && !form.querySelector('.stage-structure-bar')) {
+        const bar = document.createElement('div');
+        bar.className = 'stage-structure-bar';
+        bar.innerHTML = `
+          <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
+          <div class="stage-structure-actions">
+            <button class="btn secondary small stage-order-btn move-stage-up" type="button" aria-label="Mover etapa para cima">↑</button>
+            <button class="btn secondary small stage-order-btn move-stage-down" type="button" aria-label="Mover etapa para baixo">↓</button>
+            <button class="btn danger small stage-remove-btn" type="button">Remover</button>
+          </div>`;
+        form.insertBefore(bar, form.firstChild);
+      }
+
+      const handle = form?.querySelector('.stage-drag-handle');
+      const up = form?.querySelector('.move-stage-up');
+      const down = form?.querySelector('.move-stage-down');
+      const remove = form?.querySelector('.stage-remove-btn');
+'''
+new = '''      const form = details.querySelector('.stage-form');
+      const summary = details.querySelector('summary');
+      if (summary && !summary.querySelector('.stage-summary-layout')) {
+        const label = summary.textContent.trim();
+        summary.textContent = '';
+        const layout = document.createElement('div');
+        layout.className = 'stage-summary-layout';
+        layout.innerHTML = `
+          <span class="stage-summary-label">${esc(label)}</span>
+          <div class="stage-structure-actions">
+            <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
+            <button class="btn secondary small stage-order-btn move-stage-up" type="button" aria-label="Mover etapa para cima">↑</button>
+            <button class="btn secondary small stage-order-btn move-stage-down" type="button" aria-label="Mover etapa para baixo">↓</button>
+            <button class="btn danger small stage-remove-btn" type="button">Remover</button>
+          </div>`;
+        summary.appendChild(layout);
+      }
+
+      const handle = summary?.querySelector('.stage-drag-handle');
+      const up = summary?.querySelector('.move-stage-up');
+      const down = summary?.querySelector('.move-stage-down');
+      const remove = summary?.querySelector('.stage-remove-btn');
+'''
+if old not in s:
+    raise SystemExit('editor structure block not found')
+s = s.replace(old, new)
+s = s.replace("          handle.addEventListener('dragend', clearDragClasses);", "          handle.addEventListener('dragend', clearDragClasses);\n          handle.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });")
+s = s.replace("        up.onclick = () => moveStage(stage.stageId, -1);", "        up.onclick = event => { event.preventDefault(); event.stopPropagation(); moveStage(stage.stageId, -1); };")
+s = s.replace("        down.onclick = () => moveStage(stage.stageId, 1);", "        down.onclick = event => { event.preventDefault(); event.stopPropagation(); moveStage(stage.stageId, 1); };")
+s = s.replace("        remove.onclick = () => archiveStage(stage);", "        remove.onclick = event => { event.preventDefault(); event.stopPropagation(); archiveStage(stage); };")
+p.write_text(s)
+
+p = Path('assets/editor-v2.js')
+s = p.read_text()
+old = "form.closest('details').querySelector('summary').textContent = `Etapa ${number} — ${data.stage.unitName}`;"
+new = """const summary = form.closest('details').querySelector('summary');
+        const summaryLabel = summary?.querySelector('.stage-summary-label');
+        if (summaryLabel) summaryLabel.textContent = `Etapa ${number} — ${data.stage.unitName}`;
+        else if (summary) summary.textContent = `Etapa ${number} — ${data.stage.unitName}`;"""
+if old not in s:
+    raise SystemExit('editor title update not found')
+p.write_text(s.replace(old, new))
+
+Path('assets/editor-stage-structure.css').write_text('''.stage-summary-layout{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0}\n.stage-summary-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.stage-structure-actions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;justify-content:flex-end;flex:0 0 auto}\n.stage-drag-handle{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 8px;border-radius:9px;color:#68737e;font-size:12px;font-weight:700;cursor:grab;user-select:none;touch-action:none}\n.stage-drag-handle:active{cursor:grabbing}\n[data-stage-details].stage-dragging{opacity:.46}\n[data-stage-details].stage-drop-target{outline:2px dashed rgba(72,91,110,.38);outline-offset:5px}\n.stage-order-btn{min-width:34px;padding-left:8px!important;padding-right:8px!important}\n.stage-remove-btn{white-space:nowrap}\n.archived-stages{margin-top:16px;border-top:1px solid rgba(31,45,58,.1);padding-top:16px}\n.archived-stages.hidden{display:none!important}\n.archived-stages h3{margin:0 0 10px;font-size:15px}\n.archived-stage-list{display:grid;gap:8px}\n.archived-stage-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid rgba(31,45,58,.12);border-radius:12px;background:rgba(245,247,248,.66)}\n.archived-stage-row strong{display:block;font-size:14px}\n.archived-stage-row small{display:block;margin-top:2px;color:#77828d}\n@media(max-width:640px){.stage-summary-layout{gap:6px}.stage-summary-label{font-size:13px}.stage-drag-handle{display:none}.stage-structure-actions{gap:4px}.stage-order-btn{min-width:30px;padding-left:6px!important;padding-right:6px!important}.stage-remove-btn{padding-left:8px!important;padding-right:8px!important}.archived-stage-row{align-items:flex-start;flex-direction:column}.archived-stage-row .btn{width:100%}}\n''')
+
+version = '20260826-0945'
+for path in ['app.html', 'editor.html', 'manifest.webmanifest', 'service-worker.js']:
+    p = Path(path)
+    s = p.read_text().replace('20260825-1935', version)
+    if path == 'service-worker.js':
+        s = s.replace('shamatha-shell-v13', 'shamatha-shell-v14')
+    p.write_text(s)
+
+assert "appData.user.role === 'editor') return Promise.resolve" not in Path('assets/app.js').read_text()
+assert "data.user?.role === 'editor'" not in Path('assets/stage-identity.js').read_text()
+assert 'stage-summary-layout' in Path('assets/editor-stage-structure.js').read_text()
+assert 'shamatha-shell-v14' in Path('service-worker.js').read_text()
