@@ -177,11 +177,6 @@
     if (!merged.active.length) fail('O caminho precisa ter pelo menos uma etapa ativa.');
     data.stages = merged.active;
 
-    if (data.user?.role === 'editor') {
-      data.progress = persistentToRuntime({}, merged.active, identities);
-      return data;
-    }
-
     const auth = await sb.auth.getUser();
     const userId = auth.data?.user?.id;
     if (!userId) fail('Sessão encerrada.', 401);

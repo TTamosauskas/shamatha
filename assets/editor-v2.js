@@ -231,7 +231,10 @@ function renderStages(openStage = null) {
         editorData.stages[number - 1] = data.stage;
         status.textContent = `Etapa ${number} salva.`;
         status.className = 'status good stage-status';
-        form.closest('details').querySelector('summary').textContent = `Etapa ${number} — ${data.stage.unitName}`;
+        const summary = form.closest('details').querySelector('summary');
+        const summaryLabel = summary?.querySelector('.stage-summary-label');
+        if (summaryLabel) summaryLabel.textContent = `Etapa ${number} — ${data.stage.unitName}`;
+        else if (summary) summary.textContent = `Etapa ${number} — ${data.stage.unitName}`;
       } catch (error) {
         status.textContent = error.message;
         status.className = 'status bad stage-status';

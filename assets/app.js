@@ -62,7 +62,6 @@
   function stageState(stage = selectedStage) { return progress.stages[stage]; }
 
   function saveProgress({ immediate = false } = {}) {
-    if (appData.user.role === 'editor') return Promise.resolve();
     clearTimeout(saveTimer);
     const send = () => api('/api/progress', { method:'PUT', body:JSON.stringify({ progress }) }).catch(error => showToast(error.message));
     if (immediate) return send();
@@ -174,7 +173,7 @@
 
   function regressForInactivity() {
     const from = Number(progress.currentStage || 1);
-    if (from <= 1 || appData.user.role === 'editor') return { regressed:false };
+    if (from <= 1) return { regressed:false };
     const days = Math.max(1, Number(config(from).deadlineDays || 1));
     const latest = latestValidPracticeAt();
     const resetAnchor = Number(progress.inactivityAnchorAt || 0);
@@ -201,7 +200,7 @@
       completed = result.completed;
       advanced = result.advanced;
     }
-    if ((refreshed.changed || completed) && appData.user.role !== 'editor') saveProgress({ immediate:true });
+    if (refreshed.changed || completed) saveProgress({ immediate:true });
     return { ...regression, completed, advanced, stage };
   }
 
