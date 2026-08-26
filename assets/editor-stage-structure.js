@@ -152,23 +152,27 @@
       details.dataset.stageId = stage.stageId;
 
       const form = details.querySelector('.stage-form');
-      if (form && !form.querySelector('.stage-structure-bar')) {
-        const bar = document.createElement('div');
-        bar.className = 'stage-structure-bar';
-        bar.innerHTML = `
-          <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
+      const summary = details.querySelector('summary');
+      if (summary && !summary.querySelector('.stage-summary-layout')) {
+        const label = summary.textContent.trim();
+        summary.textContent = '';
+        const layout = document.createElement('div');
+        layout.className = 'stage-summary-layout';
+        layout.innerHTML = `
+          <span class="stage-summary-label">${esc(label)}</span>
           <div class="stage-structure-actions">
+            <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
             <button class="btn secondary small stage-order-btn move-stage-up" type="button" aria-label="Mover etapa para cima">↑</button>
             <button class="btn secondary small stage-order-btn move-stage-down" type="button" aria-label="Mover etapa para baixo">↓</button>
             <button class="btn danger small stage-remove-btn" type="button">Remover</button>
           </div>`;
-        form.insertBefore(bar, form.firstChild);
+        summary.appendChild(layout);
       }
 
-      const handle = form?.querySelector('.stage-drag-handle');
-      const up = form?.querySelector('.move-stage-up');
-      const down = form?.querySelector('.move-stage-down');
-      const remove = form?.querySelector('.stage-remove-btn');
+      const handle = summary?.querySelector('.stage-drag-handle');
+      const up = summary?.querySelector('.move-stage-up');
+      const down = summary?.querySelector('.move-stage-down');
+      const remove = summary?.querySelector('.stage-remove-btn');
 
       if (handle) {
         handle.draggable = true;
@@ -181,20 +185,21 @@
             try { event.dataTransfer.setData('text/plain', dragStageId); } catch (_) {}
           });
           handle.addEventListener('dragend', clearDragClasses);
+          handle.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
         }
       }
 
       if (up) {
         up.disabled = position <= 1;
-        up.onclick = () => moveStage(stage.stageId, -1);
+        up.onclick = event => { event.preventDefault(); event.stopPropagation(); moveStage(stage.stageId, -1); };
       }
       if (down) {
         down.disabled = position >= stages.length;
-        down.onclick = () => moveStage(stage.stageId, 1);
+        down.onclick = event => { event.preventDefault(); event.stopPropagation(); moveStage(stage.stageId, 1); };
       }
       if (remove) {
         remove.disabled = stages.length <= 1;
-        remove.onclick = () => archiveStage(stage);
+        remove.onclick = event => { event.preventDefault(); event.stopPropagation(); archiveStage(stage); };
       }
 
       if (!details.dataset.dropBound) {

@@ -1,22 +1,22 @@
-const CACHE = 'shamatha-shell-v13';
+const CACHE = 'shamatha-shell-v14';
 const SHELL = [
   './',
   './index.html?v=20260825-1135',
-  './app.html?v=20260825-1935',
-  './assets/app.css?v=20260825-1935',
-  './assets/app-cleanup.css?v=20260825-1935',
-  './assets/practice-flow.css?v=20260825-1935',
-  './assets/header-reminder.css?v=20260825-1935',
-  './assets/objective-preview.css?v=20260825-1935',
-  './assets/dynamic-journey.css?v=20260825-1935',
-  './assets/stage-identity.js?v=20260825-1935',
-  './assets/practice-ux.js?v=20260825-1935',
-  './assets/journey-replay.js?v=20260825-1935',
-  './assets/objective-preview.js?v=20260825-1935',
-  './assets/app.js?v=20260825-1935',
-  './assets/practice-audio-polish.js?v=20260825-1935',
-  './assets/pwa.js?v=20260825-1935',
-  './assets/header-reminder.js?v=20260825-1935'
+  './app.html?v=20260826-0945',
+  './assets/app.css?v=20260826-0945',
+  './assets/app-cleanup.css?v=20260826-0945',
+  './assets/practice-flow.css?v=20260826-0945',
+  './assets/header-reminder.css?v=20260826-0945',
+  './assets/objective-preview.css?v=20260826-0945',
+  './assets/dynamic-journey.css?v=20260826-0945',
+  './assets/stage-identity.js?v=20260826-0945',
+  './assets/practice-ux.js?v=20260826-0945',
+  './assets/journey-replay.js?v=20260826-0945',
+  './assets/objective-preview.js?v=20260826-0945',
+  './assets/app.js?v=20260826-0945',
+  './assets/practice-audio-polish.js?v=20260826-0945',
+  './assets/pwa.js?v=20260826-0945',
+  './assets/header-reminder.js?v=20260826-0945'
 ];
 
 self.addEventListener('install', event => {
@@ -44,7 +44,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/app.html')) {
-        return (await caches.match('./app.html?v=20260825-1935')) || Response.error();
+        return (await caches.match('./app.html?v=20260826-0945')) || Response.error();
       }
       if (url.pathname.endsWith('/shamatha/') || url.pathname.endsWith('/index.html')) {
         return (await caches.match('./index.html?v=20260825-1135')) || Response.error();
