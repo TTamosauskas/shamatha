@@ -1,0 +1,1 @@
+Branch supersedida pela implementação child-stages.
