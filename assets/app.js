@@ -45,7 +45,7 @@
   const DAY_MS = 86400000;
   const BASE_JOURNEY_PATH = 'M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95';
   const stagePositions = { 1:{left:26,top:87.5} };
-  function totalStages() { return Math.max(1, Math.min(30, Number(appData?.stages?.length || 1))); }
+  function totalStages() { return Math.max(1, Number(appData?.stages?.length || 1)); }
   function lastStage() { return totalStages(); }
 
   async function api(path, options = {}) {
