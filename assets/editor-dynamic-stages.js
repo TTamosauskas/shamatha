@@ -6,15 +6,19 @@
   const status = document.getElementById('addStageStatus');
   if (!root || !title || !button || !status) return;
 
+  const MAX_ELEPHANT_STAGES = 9;
+
   function stageCount() {
     return root.querySelectorAll('[data-stage-details]').length;
   }
 
   function sync() {
     const count = stageCount();
-    title.textContent = `Conteúdo das ${count} ${count === 1 ? 'etapa' : 'etapas'}`;
-    button.disabled = count >= 30;
-    button.title = count >= 30 ? 'Limite de 30 etapas atingido' : 'Adicionar uma nova etapa ao final do caminho';
+    title.textContent = `Estágios do elefante · ${count}/${MAX_ELEPHANT_STAGES}`;
+    button.disabled = count >= MAX_ELEPHANT_STAGES;
+    button.title = count >= MAX_ELEPHANT_STAGES
+      ? 'Os 9 estágios do elefante já estão definidos. Acrescente conteúdo pelas etapas filhas.'
+      : 'Adicionar um estágio principal ao final do caminho';
   }
 
   function setStatus(message, kind = 'good') {
@@ -23,22 +27,24 @@
   }
 
   button.addEventListener('click', async () => {
-    if (stageCount() >= 30) return setStatus('O caminho atingiu o limite de 30 etapas.', 'bad');
+    if (stageCount() >= MAX_ELEPHANT_STAGES) {
+      return setStatus('Os 9 estágios do elefante já estão definidos. Use “Adicionar etapa filha” para acrescentar aulas.', 'bad');
+    }
     button.disabled = true;
-    setStatus('Adicionando etapa…');
+    setStatus('Adicionando estágio…');
     try {
       const data = await window.ShamathaBackend.request('/api/editor/stages', { method:'POST', body:'{}' });
-      if (!data?.stage) throw new Error('A nova etapa não foi retornada pelo serviço.');
+      if (!data?.stage) throw new Error('O novo estágio não foi retornado pelo serviço.');
       if (typeof editorData !== 'undefined' && typeof renderStages === 'function') {
-        editorData.stages = [...(editorData.stages || []), data.stage].sort((a,b) => a.number - b.number);
+        editorData.stages = [...(editorData.stages || []), data.stage].sort((a,b) => Number(a.position || a.number) - Number(b.position || b.number));
         renderStages(data.stage.number);
         sync();
-        setStatus(`Etapa ${data.stage.number} adicionada. Edite os campos e salve.`);
+        setStatus(`Estágio ${data.stage.number} adicionado. Edite os campos e salve.`);
       } else {
         location.reload();
       }
     } catch (error) {
-      setStatus(error?.message || 'Falha ao adicionar a etapa.', 'bad');
+      setStatus(error?.message || 'Falha ao adicionar o estágio.', 'bad');
       sync();
     }
   });
