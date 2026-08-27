@@ -48,7 +48,8 @@
 
   async function identityRows() {
     const { data, error } = await sb.from('stages')
-      .select('number,stage_id,position,is_active')
+      .select('number,stage_id,position,is_active,parent_stage_id')
+      .is('parent_stage_id', null)
       .order('position', { ascending:true, nullsFirst:false })
       .order('number', { ascending:true });
     if (error) fail(error.message || 'Falha ao carregar a estrutura das etapas.');
