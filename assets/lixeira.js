@@ -19,34 +19,33 @@
   }
 
   async function api(path, options = {}) {
-    try {
-      return await window.ShamathaBackend.request(path, options);
-    } catch (error) {
+    try { return await window.ShamathaBackend.request(path, options); }
+    catch (error) {
       if (error?.status === 401) location.href = '../index.html';
       if (error?.status === 403) location.href = '../app.html';
       throw error;
     }
   }
 
-  function stages() {
-    return Array.isArray(data?.archivedStages) ? data.archivedStages : [];
+  function items() {
+    const roots = (Array.isArray(data?.archivedStages) ? data.archivedStages : []).map(stage => ({ ...stage, trashType:'root' }));
+    const children = (Array.isArray(data?.archivedChildStages) ? data.archivedChildStages : []).map(stage => ({ ...stage, trashType:'child' }));
+    return [...roots, ...children];
   }
 
   function render() {
-    const archived = stages();
+    const archived = items();
     count.textContent = `${archived.length} ${archived.length === 1 ? 'etapa' : 'etapas'}`;
     empty.classList.toggle('hidden', archived.length !== 0);
-    list.innerHTML = archived.map(stage => `
-      <div class="trash-row" data-stage-id="${esc(stage.stageId)}">
-        <div class="trash-row-main">
-          <strong>${esc(stage.unitName || 'Etapa sem nome')}</strong>
-          <small>Conteúdo e histórico preservados</small>
-        </div>
-        <button class="btn secondary small restore-stage" type="button" data-stage-id="${esc(stage.stageId)}">Restaurar</button>
-      </div>`).join('');
+    list.innerHTML = archived.map(stage => {
+      const child = stage.trashType === 'child';
+      const label = child ? `Etapa filha ${stage.displayCode || ''}` : 'Etapa principal';
+      const detail = child ? `Vinculada à ${stage.parentUnitName || `Etapa ${stage.parentPosition || ''}`}` : 'Conteúdo e histórico preservados';
+      return `<div class="trash-row" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}"><div class="trash-row-main"><small>${esc(label)}</small><strong>${esc(stage.unitName || 'Etapa sem nome')}</strong><small>${esc(detail)}</small></div><button class="btn secondary small restore-stage" type="button" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}">Restaurar</button></div>`;
+    }).join('');
 
     list.querySelectorAll('.restore-stage').forEach(button => {
-      button.addEventListener('click', () => restore(button.dataset.stageId));
+      button.addEventListener('click', () => restore(button.dataset.stageId, button.dataset.trashType));
     });
   }
 
@@ -55,25 +54,23 @@
     render();
   }
 
-  async function restore(stageId) {
+  async function restore(stageId, type) {
     if (busy || !stageId) return;
-    const stage = stages().find(item => item.stageId === stageId);
+    const stage = items().find(item => item.stageId === stageId && item.trashType === type);
     if (!stage) return;
     busy = true;
     list.querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
-      await api('/api/editor/stage-restore', {
-        method:'POST',
-        body:JSON.stringify({ stageId })
-      });
+      const endpoint = type === 'child' ? '/api/editor/child-stage-restore' : '/api/editor/stage-restore';
+      await api(endpoint, { method:'POST', body:JSON.stringify({ stageId }) });
       await refresh();
-      setStatus(`“${stage.unitName || 'Etapa'}” restaurada no final do caminho.`);
+      setStatus(type === 'child'
+        ? `“${stage.unitName || 'Etapa filha'}” restaurada na etapa mãe.`
+        : `“${stage.unitName || 'Etapa'}” restaurada no final do caminho.`);
     } catch (error) {
       setStatus(error?.message || 'Falha ao restaurar a etapa.', 'bad');
       render();
-    } finally {
-      busy = false;
-    }
+    } finally { busy = false; }
   }
 
   logout.addEventListener('click', async () => {
