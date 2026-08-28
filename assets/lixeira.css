@@ -4,6 +4,7 @@
 .trash-row-main{min-width:0}
 .trash-row strong{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trash-row small{display:block;margin-top:4px;color:#77828d}
+.trash-row-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .trash-empty{padding:24px 0;text-align:center;color:#77828d}
 .trash-empty.hidden{display:none!important}
-@media(max-width:640px){.trash-row{align-items:stretch;flex-direction:column}.trash-row .btn{width:100%}}
+@media(max-width:640px){.trash-row{align-items:stretch;flex-direction:column}.trash-row-actions{display:grid;grid-template-columns:1fr 1fr}.trash-row-actions .btn{width:100%}}
