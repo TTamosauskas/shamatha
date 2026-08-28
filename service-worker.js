@@ -1,22 +1,22 @@
-const CACHE = 'shamatha-shell-v16';
+const CACHE = 'shamatha-shell-v17';
 const SHELL = [
   './',
   './index.html?v=20260825-1135',
-  './app.html?v=20260827-1450',
+  './app.html?v=20260828-1640',
   './assets/app.css?v=20260827-1450',
   './assets/app-cleanup.css?v=20260827-1450',
   './assets/practice-flow.css?v=20260827-1450',
   './assets/header-reminder.css?v=20260827-1450',
   './assets/objective-preview.css?v=20260827-1450',
   './assets/dynamic-journey.css?v=20260827-1450',
-  './assets/child-stages.css?v=20260827-1450',
+  './assets/child-stages.css?v=20260828-1640',
   './assets/child-stages-backend.js?v=20260827-1450',
   './assets/stage-identity.js?v=20260827-1450',
   './assets/practice-ux.js?v=20260827-1450',
   './assets/journey-replay.js?v=20260827-1450',
   './assets/objective-preview.js?v=20260827-1450',
   './assets/app.js?v=20260827-1450',
-  './assets/child-stages.js?v=20260827-1450',
+  './assets/child-stages.js?v=20260828-1640',
   './assets/practice-audio-polish.js?v=20260827-1450',
   './assets/pwa.js?v=20260827-1450',
   './assets/header-reminder.js?v=20260827-1450'
@@ -47,7 +47,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/app.html')) {
-        return (await caches.match('./app.html?v=20260827-1450')) || Response.error();
+        return (await caches.match('./app.html?v=20260828-1640')) || Response.error();
       }
       if (url.pathname.endsWith('/shamatha/') || url.pathname.endsWith('/index.html')) {
         return (await caches.match('./index.html?v=20260825-1135')) || Response.error();
