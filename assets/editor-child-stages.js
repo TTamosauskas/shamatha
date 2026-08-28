@@ -143,6 +143,12 @@
     section.querySelectorAll('.child-editor-item').forEach(item => {
       const child = children.find(entry => entry.stageId === item.dataset.childId);
       const form = item.querySelector('.child-editor-form');
+      item.addEventListener('toggle', () => {
+        if (!item.open) return;
+        section.querySelectorAll('.child-editor-item[open]').forEach(other => {
+          if (other !== item) other.open = false;
+        });
+      });
       form.addEventListener('submit', event => { event.preventDefault(); saveChild(child, form, section); });
       item.querySelector('.archive-child-stage').addEventListener('click', () => archiveChild(child, section));
       item.querySelector('.upload-child-audio').addEventListener('click', () => uploadAudio(child, form, section));
