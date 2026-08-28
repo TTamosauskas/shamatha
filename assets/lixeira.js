@@ -41,11 +41,14 @@
       const child = stage.trashType === 'child';
       const label = child ? `Etapa filha ${stage.displayCode || ''}` : 'Etapa principal';
       const detail = child ? `Vinculada à ${stage.parentUnitName || `Etapa ${stage.parentPosition || ''}`}` : 'Conteúdo e histórico preservados';
-      return `<div class="trash-row" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}"><div class="trash-row-main"><small>${esc(label)}</small><strong>${esc(stage.unitName || 'Etapa sem nome')}</strong><small>${esc(detail)}</small></div><button class="btn secondary small restore-stage" type="button" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}">Restaurar</button></div>`;
+      return `<div class="trash-row" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}"><div class="trash-row-main"><small>${esc(label)}</small><strong>${esc(stage.unitName || 'Etapa sem nome')}</strong><small>${esc(detail)}</small></div><div class="trash-row-actions"><button class="btn secondary small restore-stage" type="button" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}">Restaurar</button><button class="btn danger small purge-stage" type="button" data-stage-id="${esc(stage.stageId)}" data-trash-type="${stage.trashType}">Deletar</button></div></div>`;
     }).join('');
 
     list.querySelectorAll('.restore-stage').forEach(button => {
       button.addEventListener('click', () => restore(button.dataset.stageId, button.dataset.trashType));
+    });
+    list.querySelectorAll('.purge-stage').forEach(button => {
+      button.addEventListener('click', () => purge(button.dataset.stageId, button.dataset.trashType));
     });
   }
 
@@ -70,6 +73,28 @@
     } catch (error) {
       setStatus(error?.message || 'Falha ao restaurar a etapa.', 'bad');
       render();
+    } finally { busy = false; }
+  }
+
+  async function purge(stageId, type) {
+    if (busy || !stageId) return;
+    const stage = items().find(item => item.stageId === stageId && item.trashType === type);
+    if (!stage) return;
+    const label = stage.unitName || (type === 'child' ? 'Etapa filha' : 'Etapa');
+    const extra = type === 'root' ? ' Etapas filhas vinculadas também serão apagadas.' : '';
+    const accepted = window.confirm(`Deletar definitivamente “${label}”?${extra} Essa ação apaga conteúdo, progresso associado e arquivos de áudio.`);
+    if (!accepted) return;
+
+    busy = true;
+    list.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try {
+      const endpoint = type === 'child' ? '/api/editor/child-stage-purge' : '/api/editor/stage-purge';
+      await api(endpoint, { method:'POST', body:JSON.stringify({ stageId }) });
+      await refresh();
+      setStatus(`“${label}” foi deletada definitivamente.`);
+    } catch (error) {
+      setStatus(error?.message || 'Falha ao deletar definitivamente a etapa.', 'bad');
+      await refresh().catch(() => render());
     } finally { busy = false; }
   }
 
