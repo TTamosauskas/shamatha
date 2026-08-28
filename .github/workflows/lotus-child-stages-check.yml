@@ -1,0 +1,22 @@
+name: Lotus child stages check
+on:
+  push:
+    branches: [lotus-child-stages]
+    paths:
+      - assets/child-stages.js
+      - assets/editor-child-stages.js
+      - .github/workflows/lotus-child-stages-check.yml
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: lotus-child-stages
+      - name: Validate scripts
+        run: |
+          node --check assets/child-stages.js
+          node --check assets/editor-child-stages.js
+          grep -q 'child-stage-lotus' assets/child-stages.js
+          grep -q 'child-stage-marker--past' assets/child-stages.js
+          grep -q "other.open = false" assets/editor-child-stages.js
