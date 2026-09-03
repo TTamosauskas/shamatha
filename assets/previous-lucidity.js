@@ -20,7 +20,8 @@
     let latest = null;
     for (const stage of Object.values(progress?.stages || {})) {
       for (const session of stage?.sessions || []) {
-        const value = Number(session?.lucidity);
+        if (session?.lucidity == null || session.lucidity === '') continue;
+        const value = Number(session.lucidity);
         if (!Number.isFinite(value)) continue;
         const time = sessionTime(session);
         if (!latest || time > latest.time) latest = { value:Math.max(0, Math.min(100, value)), time };
