@@ -1,0 +1,39 @@
+.previous-lucidity-marker {
+  position: relative;
+  height: 32px;
+  margin-top: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.previous-lucidity-pointer {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  color: #c7baa3;
+  white-space: nowrap;
+}
+
+.previous-lucidity-pointer.edge-low {
+  transform: translateX(0);
+}
+
+.previous-lucidity-pointer.edge-high {
+  transform: translateX(-100%);
+}
+
+.previous-lucidity-arrow {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.previous-lucidity-label {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: .02em;
+  text-transform: lowercase;
+}
