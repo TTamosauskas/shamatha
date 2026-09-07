@@ -43,16 +43,18 @@
       const value = latestLucidity(appData?.progress);
       if (value == null) return;
 
+      const roundedValue = Math.round(value);
       const marker = document.createElement('div');
       marker.className = 'previous-lucidity-marker';
-      marker.setAttribute('aria-label', `Sessão anterior: ${Math.round(value)}% de concentração`);
+      marker.setAttribute('aria-label', `Sessão anterior: ${roundedValue}% de concentração`);
 
       const pointer = document.createElement('span');
       pointer.className = 'previous-lucidity-pointer';
+      pointer.title = `Anterior: ${roundedValue}%`;
       if (value <= 8) pointer.classList.add('edge-low');
       if (value >= 92) pointer.classList.add('edge-high');
       pointer.style.left = `${value}%`;
-      pointer.innerHTML = '<span class="previous-lucidity-arrow" aria-hidden="true">▲</span><span class="previous-lucidity-label">anterior</span>';
+      pointer.innerHTML = '<span class="previous-lucidity-arrow" aria-hidden="true">△</span><span class="previous-lucidity-label">anterior</span>';
       marker.appendChild(pointer);
 
       const labels = shell.querySelector('.range-labels');
