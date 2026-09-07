@@ -4,7 +4,8 @@
   const scroll = document.getElementById('unitScroll');
   if (!scroll || !window.ShamathaBackend?.request) return;
 
-  let renderToken = 0;
+  let pending = false;
+  let scheduleTimer = null;
 
   function sessionTime(session) {
     for (const value of [session?.savedAt, session?.endedAt, session?.startedAt]) {
@@ -24,23 +25,33 @@
         const value = Number(session.lucidity);
         if (!Number.isFinite(value)) continue;
         const time = sessionTime(session);
-        if (!latest || time > latest.time) latest = { value:Math.max(0, Math.min(100, value)), time };
+        if (!latest || time > latest.time) {
+          latest = { value: Math.max(0, Math.min(100, value)), time };
+        }
       }
     }
     return latest?.value ?? null;
   }
 
   async function renderPreviousMarker() {
-    const range = scroll.querySelector('#lucidity');
-    const shell = range?.closest('.range-shell');
-    if (!range || !shell || shell.querySelector('.previous-lucidity-marker')) return;
+    const initialRange = scroll.querySelector('#lucidity');
+    if (!initialRange || pending) return;
+    if (initialRange.dataset.previousLucidityChecked === 'true') return;
 
-    const token = ++renderToken;
+    pending = true;
     try {
       const appData = await window.ShamathaBackend.request('/api/app-data');
-      if (token !== renderToken || !document.body.contains(range)) return;
+
+      const range = scroll.querySelector('#lucidity');
+      const shell = range?.closest('.range-shell');
+      if (!range || !shell) return;
+      if (shell.querySelector('.previous-lucidity-marker')) {
+        range.dataset.previousLucidityChecked = 'true';
+        return;
+      }
 
       const value = latestLucidity(appData?.progress);
+      range.dataset.previousLucidityChecked = 'true';
       if (value == null) return;
 
       const roundedValue = Math.round(value);
@@ -61,11 +72,19 @@
       if (labels) shell.insertBefore(marker, labels);
       else shell.appendChild(marker);
     } catch (_) {
-      // A régua continua funcional mesmo se a referência anterior não puder ser carregada.
+      const range = scroll.querySelector('#lucidity');
+      if (range) range.dataset.previousLucidityChecked = 'true';
+    } finally {
+      pending = false;
     }
   }
 
-  const observer = new MutationObserver(renderPreviousMarker);
-  observer.observe(scroll, { childList:true, subtree:true });
-  renderPreviousMarker();
+  function scheduleRender() {
+    clearTimeout(scheduleTimer);
+    scheduleTimer = setTimeout(renderPreviousMarker, 40);
+  }
+
+  const observer = new MutationObserver(scheduleRender);
+  observer.observe(scroll, { childList: true, subtree: true });
+  scheduleRender();
 })();
