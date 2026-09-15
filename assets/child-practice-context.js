@@ -1,12 +1,12 @@
 (() => {
   'use strict';
 
-  const backend = window.ShamathaBackend;
+  const base = window.ShamathaBackend;
   const modal = document.getElementById('unitModal');
   const scroll = document.getElementById('unitScroll');
-  if (!backend?.request || !modal || !scroll) return;
+  if (!base?.request || !modal || !scroll) return;
 
-  const originalRequest = backend.request.bind(backend);
+  const originalRequest = base.request.bind(base);
   const dataRefs = new Set();
   const knownSessionIds = new Set();
   const originals = new Map();
@@ -128,7 +128,7 @@
     return payload;
   }
 
-  backend.request = async function request(path, options = {}) {
+  async function request(path, options = {}) {
     const method = String(options.method || 'GET').toUpperCase();
 
     if (path === '/api/app-data' && method === 'GET') {
@@ -149,7 +149,9 @@
     }
 
     return originalRequest(path, options);
-  };
+  }
+
+  window.ShamathaBackend = Object.freeze({ ...base, request });
 
   function schedulePatch() {
     if (!active || patchFrame != null) return;
