@@ -65,20 +65,18 @@
   async function request(path, options = {}) {
     const method = String(options.method || 'GET').toUpperCase();
 
+    // A home usa a carga rápida. A informação da aula ao vivo é atualizada
+    // logo depois por live-ui.js, fora do caminho crítico da primeira pintura.
     if (path === '/api/app-data' && method === 'GET') {
       const data = await originalRequest(path, options);
-      const liveClass = await visibleLiveClass();
-      data.nextLiveClass = liveClass;
       data.settings = data.settings || {};
       data.settings.liveClassUrl = '';
-      if (liveClass) {
-        const diff = new Date(liveClass.startsAt).getTime() - Date.now();
-        if (diff <= 0 && diff >= -30 * 60 * 1000) data.settings.liveClassUrl = liveClass.url;
-      }
       return data;
     }
 
-    if (path === '/api/live-class' && method === 'GET') return { liveClass:await visibleLiveClass() };
+    if (path === '/api/live-class' && method === 'GET') {
+      return { liveClass:await visibleLiveClass() };
+    }
 
     if (path === '/api/editor/data' && method === 'GET') {
       const data = await originalRequest(path, options);
@@ -88,8 +86,11 @@
 
     if (path === '/api/editor/user' && method === 'DELETE') {
       let body = {};
-      try { body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {}); }
-      catch (_) { fail('Dados enviados em formato inválido.'); }
+      try {
+        body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {});
+      } catch (_) {
+        fail('Dados enviados em formato inválido.');
+      }
       return invokeOps({ action:'delete_user', email:body.email });
     }
 

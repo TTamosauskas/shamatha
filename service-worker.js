@@ -1,22 +1,30 @@
-const CACHE = 'shamatha-shell-v17';
+const CACHE = 'shamatha-shell-v18';
 const SHELL = [
   './',
   './index.html?v=20260825-1135',
-  './app.html?v=20260828-1640',
+  './app.html?v=20260915-2',
   './assets/app.css?v=20260827-1450',
   './assets/app-cleanup.css?v=20260827-1450',
   './assets/practice-flow.css?v=20260827-1450',
+  './assets/previous-lucidity.css?v=20260907-2',
   './assets/header-reminder.css?v=20260827-1450',
   './assets/objective-preview.css?v=20260827-1450',
   './assets/dynamic-journey.css?v=20260827-1450',
   './assets/child-stages.css?v=20260828-1640',
-  './assets/child-stages-backend.js?v=20260827-1450',
+  './assets/config.js?v=20260827-1450',
+  './assets/supabase-backend.js?v=20260827-1450',
+  './assets/shamatha-extensions.js?v=20260827-1450',
   './assets/stage-identity.js?v=20260827-1450',
+  './assets/child-stages-backend.js?v=20260827-1450',
+  './assets/fast-app-data.js?v=20260915-2',
+  './assets/child-practice-context.js?v=20260915-2',
+  './assets/runtime-v3.js?v=20260915-2',
   './assets/practice-ux.js?v=20260827-1450',
   './assets/journey-replay.js?v=20260827-1450',
   './assets/objective-preview.js?v=20260827-1450',
   './assets/app.js?v=20260827-1450',
-  './assets/child-stages.js?v=20260828-1640',
+  './assets/previous-lucidity-family.js?v=20260915-1',
+  './assets/child-stages.js?v=20260915-2',
   './assets/practice-audio-polish.js?v=20260827-1450',
   './assets/pwa.js?v=20260827-1450',
   './assets/header-reminder.js?v=20260827-1450'
@@ -47,7 +55,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/app.html')) {
-        return (await caches.match('./app.html?v=20260828-1640')) || Response.error();
+        return (await caches.match('./app.html?v=20260915-2')) || Response.error();
       }
       if (url.pathname.endsWith('/shamatha/') || url.pathname.endsWith('/index.html')) {
         return (await caches.match('./index.html?v=20260825-1135')) || Response.error();

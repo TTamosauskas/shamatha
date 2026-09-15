@@ -30,14 +30,14 @@
   function proxyStage(parent, child) {
     return {
       ...parent,
-      stageName: child.stageName || parent.stageName || 'Aula de apoio',
-      unitName: child.unitName || parent.unitName || 'Aula de apoio',
-      objective: child.objective || '',
-      videoUrl: child.videoUrl || '',
-      audioUrl: child.audioUrl || '',
-      childPractice: true,
-      childStageId: child.stageId,
-      childDisplayCode: child.displayCode
+      stageName:child.stageName || parent.stageName || 'Aula de apoio',
+      unitName:child.unitName || parent.unitName || 'Aula de apoio',
+      objective:child.objective || '',
+      videoUrl:child.videoUrl || '',
+      audioUrl:child.audioUrl || '',
+      childPractice:true,
+      childStageId:child.stageId,
+      childDisplayCode:child.displayCode
     };
   }
 
@@ -51,8 +51,8 @@
     if (!introOriginals.has(data)) {
       const state = data.progress?.stages?.[active.parentPosition];
       introOriginals.set(data, state ? {
-        introStarted: state.introStarted,
-        introDone: state.introDone
+        introStarted:state.introStarted,
+        introDone:state.introDone
       } : null);
     }
 
@@ -91,6 +91,10 @@
     dataRefs.add(data);
     rememberSessionIds(data.progress);
     if (active) applyContextToData(data);
+
+    queueMicrotask(() => {
+      document.dispatchEvent(new CustomEvent('shamatha:app-data-ready', { detail:{ data } }));
+    });
     return data;
   }
 
@@ -140,11 +144,12 @@
       let wasString = false;
       if (typeof parsed === 'string') {
         wasString = true;
-        try { parsed = JSON.parse(parsed); } catch (_) { parsed = null; }
+        try { parsed = JSON.parse(parsed); }
+        catch (_) { parsed = null; }
       }
       if (parsed && typeof parsed === 'object') {
         syncSessionMetadata(parsed);
-        options = { ...options, body: wasString ? JSON.stringify(parsed) : parsed };
+        options = { ...options, body:wasString ? JSON.stringify(parsed) : parsed };
       }
     }
 
@@ -171,7 +176,9 @@
 
     const toolbarText = `Etapa ${code} — ${active.child.stageName || 'Aula de apoio'}`;
     if (toolbar && toolbar.textContent !== toolbarText) toolbar.textContent = toolbarText;
-    if (title && title.textContent !== (active.child.unitName || 'Aula de apoio')) title.textContent = active.child.unitName || 'Aula de apoio';
+    if (title && title.textContent !== (active.child.unitName || 'Aula de apoio')) {
+      title.textContent = active.child.unitName || 'Aula de apoio';
+    }
     if (eyebrow && /^Etapa\s+/i.test(eyebrow.textContent || '')) eyebrow.textContent = `Etapa ${code}`;
     if (sessionCount) {
       const next = String(sessionCount.textContent || '').replace(/etapa\s+\d+(?:\.\d+)?/i, `etapa ${code}`);
@@ -179,9 +186,41 @@
     }
   }
 
-  function openChild(child) {
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3300);
+  }
+
+  async function resolveChildAudio(child) {
+    if (!child?.audioNeedsResolve) return child;
+    const result = await originalRequest(`/api/child-stage-audio/${encodeURIComponent(child.stageId)}`);
+    child.audioUrl = result?.audioUrl || '';
+    child.ownAudioUrl = child.audioUrl;
+    child.audioNeedsResolve = false;
+
+    for (const data of dataRefs) {
+      const local = childFromData(data, child.stageId);
+      if (!local) continue;
+      local.audioUrl = child.audioUrl;
+      local.ownAudioUrl = child.audioUrl;
+      local.audioNeedsResolve = false;
+    }
+    return child;
+  }
+
+  async function openChild(child) {
     if (!child?.unlocked) return;
     if (active) restoreContext({ refreshHome:false });
+
+    try {
+      await resolveChildAudio(child);
+    } catch (error) {
+      showToast(error?.message || 'Falha ao carregar o áudio desta aula.');
+      return;
+    }
 
     const parentPosition = Math.max(1, Number(child.parentPosition || 1));
     active = { child, parentPosition };
@@ -221,12 +260,20 @@
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
     const marker = target?.closest('.child-stage-marker');
+
     if (marker) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
       const child = findChild(marker.dataset.childStageId);
-      if (child?.unlocked) openChild(child);
+      if (!child?.unlocked || marker.dataset.loading === '1') return;
+
+      marker.dataset.loading = '1';
+      marker.setAttribute('aria-busy', 'true');
+      Promise.resolve(openChild(child)).finally(() => {
+        marker.dataset.loading = '';
+        marker.removeAttribute('aria-busy');
+      });
       return;
     }
 
@@ -235,6 +282,10 @@
         restoreIntroFlags();
         schedulePatch();
       });
+    }
+
+    if (active && target?.closest('#startSession')) {
+      setTimeout(annotateActiveStorage, 50);
     }
   }, true);
 
@@ -264,13 +315,17 @@
     } catch (_) {}
   }
 
-  setInterval(annotateActiveStorage, 250);
+  const storageTimer = setInterval(annotateActiveStorage, 1000);
+  window.addEventListener('beforeunload', () => {
+    annotateActiveStorage();
+    clearInterval(storageTimer);
+  });
 
   window.ShamathaPracticeContext = {
-    getData: () => latestData,
-    getActiveChild: () => active ? active.child : null,
-    getParentPosition: () => active?.parentPosition || null,
+    getData:() => latestData,
+    getActiveChild:() => active ? active.child : null,
+    getParentPosition:() => active?.parentPosition || null,
     openChild,
-    restore: restoreContext
+    restore:restoreContext
   };
 })();
