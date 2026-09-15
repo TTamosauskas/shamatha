@@ -67,6 +67,34 @@
     };
   }
 
+  function dayOrdinal(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit'
+    }).formatToParts(date);
+    const map = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
+    return Math.floor(Date.UTC(map.year, map.month - 1, map.day) / 86400000);
+  }
+
+  function refreshLocalUnlocks() {
+    if (!data?.childStages?.length) return;
+    const today = dayOrdinal(Date.now());
+    for (const child of data.childStages) {
+      if (child.unlocked) continue;
+      const parent = Math.max(1, Number(child.parentPosition || 1));
+      const state = data.progress?.stages?.[parent] || {};
+      let unlocked = Boolean(state.completedAt);
+      const activatedAt = Number(state.activatedAt || 0);
+      if (!unlocked && activatedAt) {
+        const activatedDay = dayOrdinal(activatedAt);
+        const practiceDay = activatedDay == null || today == null ? 1 : (today - activatedDay + 1);
+        unlocked = practiceDay >= Math.max(1, Number(child.releaseDay || 1));
+      }
+      if (unlocked) child.unlocked = true;
+    }
+  }
+
   function markerRatio(child, total) {
     if (total <= 1) return .5;
     const parent = Math.max(1, Math.min(total, Number(child.parentPosition || 1)));
@@ -95,6 +123,7 @@
 
   function renderMarkers() {
     if (!data) return;
+    refreshLocalUnlocks();
     journey.querySelectorAll('.child-stage-marker').forEach(item => item.remove());
 
     const children = (data.childStages || []).filter(child => child.isActive);
