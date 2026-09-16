@@ -18,7 +18,7 @@
     if (finished && Number(value) < 100) return;
     const next = Math.max(current, Math.min(100, Number(value) || 0));
     current = next;
-    orbit.style.setProperty('--loading-progress', String(next));
+    orbit.style.setProperty('--loading-progress', `${next}%`);
     if (message) {
       copy.textContent = message;
       screen.setAttribute('aria-label', message);
