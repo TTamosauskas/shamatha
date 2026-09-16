@@ -2,6 +2,7 @@
   'use strict';
 
   const tbody = document.getElementById('usersBody');
+  const stagesRoot = document.getElementById('stages');
   const status = document.getElementById('accessStatus');
   if (!tbody) return;
 
@@ -10,7 +11,7 @@
   let scheduled = false;
 
   function esc(value) {
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
   function editorState() {
@@ -148,6 +149,7 @@
   }
 
   new MutationObserver(scheduleSync).observe(tbody, { childList:true, subtree:true });
+  if (stagesRoot) new MutationObserver(scheduleSync).observe(stagesRoot, { childList:true, subtree:true });
 
   const timer = setInterval(() => {
     if (!editorState()?.users || !editorState()?.stages) return;
