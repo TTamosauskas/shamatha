@@ -7,6 +7,7 @@
   <title>Centro Pineal — Meditação</title>
   <link rel="manifest" href="./manifest.webmanifest?v=20260827-1450" />
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./assets/app-loading.css?v=20260916-1" />
   <link rel="stylesheet" href="./assets/app.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/practice-flow.css?v=20260827-1450" />
@@ -16,7 +17,18 @@
   <link rel="stylesheet" href="./assets/dynamic-journey.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/child-stages.css?v=20260828-1640" />
 </head>
-<body>
+<body class="app-loading-active">
+  <div class="app-loading-screen" id="appLoadingScreen" role="status" aria-live="polite" aria-label="Preparando seu caminho">
+    <div class="app-loading-panel">
+      <p class="app-loading-kicker">Centro Pineal</p>
+      <div class="app-loading-orbit" id="appLoadingOrbit" aria-hidden="true">
+        <span class="app-loading-elephant">🐘</span>
+      </div>
+      <p class="app-loading-copy" id="appLoadingCopy">Preparando seu caminho…</p>
+    </div>
+  </div>
+  <script src="./assets/app-loading.js?v=20260916-1"></script>
+
   <main class="app-shell" id="appShell">
     <div class="sky-haze"></div>
     <svg class="mountains" viewBox="0 0 1000 1400" preserveAspectRatio="none" aria-hidden="true">
