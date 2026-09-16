@@ -29,7 +29,7 @@ body.app-loading-active{overflow:hidden}
   text-align:center;
 }
 .app-loading-orbit{
-  --loading-progress:10;
+  --loading-progress:10%;
   position:relative;
   width:178px;
   height:178px;
@@ -42,7 +42,7 @@ body.app-loading-active{overflow:hidden}
   position:absolute;
   inset:0;
   border-radius:inherit;
-  background:conic-gradient(from -90deg,#4e829d calc(var(--loading-progress) * 1%),rgba(78,130,157,.16) 0);
+  background:conic-gradient(from -90deg,#4e829d var(--loading-progress),rgba(78,130,157,.16) 0);
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));
   mask:radial-gradient(farthest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));
   transition:background .4s ease;
