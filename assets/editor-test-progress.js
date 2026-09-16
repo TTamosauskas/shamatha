@@ -76,6 +76,17 @@
     };
   }
 
+  function applyChildUnlocks(data, progress) {
+    if (!Array.isArray(data?.childStages)) return;
+    const unlocks = progress?.childUnlocks || {};
+    data.childStages.forEach(child => {
+      const unlockedAt = Number(unlocks[child.stageId] || 0);
+      if (!unlockedAt) return;
+      child.unlocked = true;
+      child.unlockedAt = unlockedAt;
+    });
+  }
+
   async function request(path, options = {}) {
     const result = await originalRequest(path, options);
     const method = String(options.method || 'GET').toUpperCase();
@@ -83,7 +94,10 @@
 
     const raw = await rawProgress(result.user.id);
     const progress = runtimeProgress(result, raw);
-    if (progress) result.progress = progress;
+    if (progress) {
+      result.progress = progress;
+      applyChildUnlocks(result, progress);
+    }
     return result;
   }
 
