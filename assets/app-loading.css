@@ -1,3 +1,4 @@
+body.app-loading-active{overflow:hidden}
 .app-loading-screen{
   position:fixed;
   inset:0;
@@ -7,6 +8,7 @@
   justify-content:center;
   min-height:100dvh;
   padding:24px;
+  touch-action:none;
   background:
     radial-gradient(circle at 50% 38%,rgba(255,255,255,.95),rgba(234,247,253,.96) 42%,rgba(218,238,248,.98) 100%);
   opacity:1;
