@@ -107,7 +107,7 @@
     if (!emailCell || !activityCell) return;
     const email = String(emailCell.dataset.email || emailCell.querySelector('.user-email-text')?.textContent || emailCell.textContent || '').replace('✏️','').trim().toLowerCase();
     const user = userByEmail(email);
-    if (!user || user.role === 'editor' || user.isOwner) {
+    if (!user) {
       activityCell.querySelector('.user-position-wrap')?.remove();
       return;
     }
