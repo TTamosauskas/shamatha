@@ -1,8 +1,8 @@
-const CACHE = 'shamatha-shell-v20';
+const CACHE = 'shamatha-shell-v21';
 const SHELL = [
   './',
   './index.html?v=20260825-1135',
-  './app.html?v=20260916-2',
+  './app.html?v=20260916-3',
   './assets/app-loading.css?v=20260916-1',
   './assets/app-loading.js?v=20260916-1',
   './assets/app.css?v=20260827-1450',
@@ -19,6 +19,7 @@ const SHELL = [
   './assets/stage-identity.js?v=20260827-1450',
   './assets/child-stages-backend.js?v=20260827-1450',
   './assets/fast-app-data.js?v=20260915-2',
+  './assets/editor-test-progress.js?v=20260916-1',
   './assets/child-practice-context.js?v=20260915-2',
   './assets/runtime-v3.js?v=20260915-2',
   './assets/practice-ux.js?v=20260827-1450',
@@ -58,7 +59,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/app.html')) {
-        return (await caches.match('./app.html?v=20260916-2')) || Response.error();
+        return (await caches.match('./app.html?v=20260916-3')) || Response.error();
       }
       if (url.pathname.endsWith('/shamatha/') || url.pathname.endsWith('/index.html')) {
         return (await caches.match('./index.html?v=20260825-1135')) || Response.error();
