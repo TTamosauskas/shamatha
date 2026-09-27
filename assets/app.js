@@ -466,10 +466,11 @@
 
   async function beginCountdown() {
     if(sessionState!=='preparation') return;
+    document.dispatchEvent(new CustomEvent('shamatha:practice-preparing', { detail:{ hasAudio:Boolean(config().audioUrl) } }));
     document.getElementById('prepCopy')?.classList.add('departing'); document.getElementById('reviewVideoRow')?.classList.add('departing'); document.getElementById('backFromPreparation')?.classList.add('departing');
     await unlockAudio();
     sessionState='countdown';
-    currentSession={id:`s_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,stage:selectedStage,sessionNumber:Math.min(completedCount()+1,config().sessionsRequired),startedAt:null,endedAt:null,elapsedSeconds:0,playbackSeconds:0,audioDuration:Number.isFinite(el.audio.duration)?el.audio.duration:0,endedEarly:false,paused:false};
+    currentSession={id:`s_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,stage:selectedStage,sessionNumber:Math.min(completedCount()+1,config().sessionsRequired),startedAt:null,endedAt:null,elapsedSeconds:0,playbackSeconds:0,audioDuration:Number.isFinite(el.audio.duration)?el.audio.duration:0,endedEarly:false,paused:false,cuts:[]};
     saveActiveSession();
     document.getElementById('countdownEndFooter')?.classList.add('activity-visible');
     const btn=document.getElementById('startSession'); btn.classList.add('breathing','counting'); btn.disabled=true;
@@ -485,13 +486,31 @@
     } else { currentSession.audioDuration=0; currentSession.paused=false; }
     saveActiveSession(); renderActive();
     showPracticeEndControl({ hideAfter:1000 });
+    if (cfg.audioUrl) document.dispatchEvent(new CustomEvent('shamatha:practice-started', { detail:{ hasAudio:true, sessionId:currentSession.id } }));
+  }
+
+  function formatCutTime(seconds) {
+    const total=Math.max(0,Math.floor(Number(seconds||0))), min=Math.floor(total/60), sec=total%60;
+    return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+
+  function renderCutMarkers() {
+    const box=document.getElementById('cutMarkers');
+    if(!box || !currentSession) return;
+    const cuts=Array.isArray(currentSession.cuts)?currentSession.cuts:[];
+    box.innerHTML=cuts.map((cut,index)=>{
+      const time=formatCutTime(cut?.time);
+      return `<span class="cut-marker" title="Corte ${index+1} em ${escapeHtml(time)}"><span aria-hidden="true">🔪</span><span>${escapeHtml(time)}</span></span>`;
+    }).join('');
   }
 
   function renderActive() {
     const hasAudio=Boolean(config().audioUrl);
-    el.scroll.innerHTML=`<div class="view practice-active"><div class="active-center"><div class="active-breath ${currentSession.paused?'paused':''}" id="audioProgressRing" style="--audio-progress:0%"><button class="active-toggle" id="audioToggle" type="button" aria-label="${currentSession.paused?'Retomar áudio':'Pausar áudio'}"><span class="active-symbol">${currentSession.paused?'▶':'Ⅱ'}</span></button></div><p class="active-started"><strong>Prática iniciada</strong>${hasAudio?'Acompanhe o áudio e volte à respiração.':'A etapa está configurada como prática silenciosa.'}</p></div><footer class="active-footer activity-visible" id="practiceEndFooter"><button class="danger" id="endSession">Encerrar prática</button></footer></div>`;
+    const voiceMarker=hasAudio?'<div class="voice-cut-panel" id="voiceCutPanel"><div class="voice-cut-status" id="voiceCutStatus" role="status" aria-live="polite">Preparando marcador por voz…</div><div class="cut-markers" id="cutMarkers" aria-label="Cortes marcados nesta sessão"></div></div>':'';
+    el.scroll.innerHTML=`<div class="view practice-active"><div class="active-center"><div class="active-breath ${currentSession.paused?'paused':''}" id="audioProgressRing" style="--audio-progress:0%"><button class="active-toggle" id="audioToggle" type="button" aria-label="${currentSession.paused?'Retomar áudio':'Pausar áudio'}"><span class="active-symbol">${currentSession.paused?'▶':'Ⅱ'}</span></button></div><p class="active-started"><strong>Prática iniciada</strong>${hasAudio?'Acompanhe o áudio e volte à respiração.':'A etapa está configurada como prática silenciosa.'}</p>${voiceMarker}</div><footer class="active-footer activity-visible" id="practiceEndFooter"><button class="danger" id="endSession">Encerrar prática</button></footer></div>`;
     document.getElementById('audioToggle').addEventListener('click',toggleAudio);
     document.getElementById('endSession').addEventListener('click',()=>endPractice(true));
+    renderCutMarkers();
   }
 
   async function toggleAudio() {
@@ -579,6 +598,19 @@
     if(sessionState==='active'&&currentSession){currentSession.playbackSeconds=el.audio.currentTime;currentSession.audioDuration=Number.isFinite(el.audio.duration)?el.audio.duration:currentSession.audioDuration;const ring=document.getElementById('audioProgressRing'),duration=Number(el.audio.duration||currentSession.audioDuration||0),pct=duration>0?Math.max(0,Math.min(100,(el.audio.currentTime/duration)*100)):0;if(ring){ring.style.setProperty('--audio-progress',`${pct}%`);ring.setAttribute('aria-label',`Progresso da meditação: ${Math.round(pct)}%`);}saveActiveSession();}
   });
   el.audio.addEventListener('ended',()=>endPractice(false));
+
+  document.addEventListener('shamatha:cut-detected',event=>{
+    if(sessionState!=='active' || !currentSession || !config().audioUrl || el.audio.paused || el.audio.ended) return;
+    const time=Number(event.detail?.time);
+    if(!Number.isFinite(time) || time<0) return;
+    const cuts=Array.isArray(currentSession.cuts)?currentSession.cuts:[];
+    const last=cuts[cuts.length-1];
+    if(last && Math.abs(Number(last.time||0)-time)<0.8) return;
+    cuts.push({time,detectedAt:Number(event.detail?.detectedAt||Date.now())});
+    currentSession.cuts=cuts;
+    saveActiveSession();
+    renderCutMarkers();
+  });
 
   document.addEventListener('shamatha:audio-ended',()=>{
     if(sessionState!=='active') return;
