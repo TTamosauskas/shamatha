@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260827-1450" />
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./assets/app-loading.css?v=20260916-1" />
-  <link rel="stylesheet" href="./assets/app.css?v=20260827-1450" />
+  <link rel="stylesheet" href="./assets/app.css?v=20261006-1" />
   <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/practice-flow.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/previous-lucidity.css?v=20260907-2" />
@@ -80,6 +80,20 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
 
+  <button class="logbook-fab" id="logbookButton" type="button" aria-label="Abrir Diário de Bordo" title="Diário de Bordo">📝</button>
+
+  <div class="modal-backdrop hidden logbook-backdrop" id="logbookModal" role="dialog" aria-modal="true" aria-labelledby="logbookTitle">
+    <section class="unit-window logbook-window">
+      <header class="unit-toolbar unit-toolbar-minimal">
+        <div class="unit-toolbar-title"><small>SUAS PRÁTICAS</small><strong id="logbookTitle">Diário de Bordo</strong></div>
+        <button class="icon-btn" id="closeLogbook" aria-label="Fechar Diário de Bordo">×</button>
+      </header>
+      <div class="unit-scroll logbook-scroll">
+        <div class="logbook-list" id="logbookList"></div>
+      </div>
+    </section>
+  </div>
+
   <div class="modal-backdrop hidden" id="unitModal" role="dialog" aria-modal="true" aria-label="Conteúdo da etapa">
     <section class="unit-window">
       <header class="unit-toolbar unit-toolbar-minimal">
@@ -105,7 +119,7 @@
 <script src="./assets/practice-ux.js?v=20260827-1450"></script>
 <script src="./assets/journey-replay.js?v=20260827-1450"></script>
 <script src="./assets/objective-preview.js?v=20260827-1450"></script>
-<script src="./assets/app.js?v=20260927-1"></script>
+<script src="./assets/app.js?v=20261006-1"></script>
 <script src="./assets/voice-cut-marker.js?v=20260927-1"></script>
 <script src="./assets/previous-lucidity-family.js?v=20260915-1"></script>
 <script src="./assets/child-stages.js?v=20260915-2"></script>
