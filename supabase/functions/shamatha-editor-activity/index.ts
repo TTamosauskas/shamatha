@@ -123,8 +123,6 @@ function extractLogbook(data: any) {
     });
   };
 
-  for (const entry of Array.isArray(data?.logbook) ? data.logbook : []) add(entry);
-
   const modern = data?.stagesById && typeof data.stagesById === 'object' ? data.stagesById : null;
   const legacy = data?.stages && typeof data.stages === 'object' ? data.stages : null;
   const source = modern && Object.keys(modern).length ? modern : legacy;
@@ -134,6 +132,8 @@ function extractLogbook(data: any) {
       for (const session of Array.isArray(stageState?.sessions) ? stageState.sessions : []) add(session, fallbackStage);
     }
   }
+
+  for (const entry of Array.isArray(data?.logbook) ? data.logbook : []) add(entry);
 
   return [...byId.values()]
     .sort((a,b) => Date.parse(b.at) - Date.parse(a.at))
