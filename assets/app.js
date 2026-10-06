@@ -248,7 +248,12 @@
 
   function buildProfessorWeeklyText(entries) {
     const ordered=entries.slice().sort((a,b)=>a.at-b.at);
-    const rows=ordered.map(entry=>entry.text);
+    const rows=ordered.map(entry=>{
+      const date=`*${formatLogbookDate(entry.at)}*`;
+      const match=String(entry.text||'').match(/^(\[Etapa\s+\d+(?:\.\d+)?\])\s*(.*)$/i);
+      if(match) return `${date} ${match[1]} - ${match[2]}`;
+      return `${date} - ${entry.text}`;
+    });
     return `Diário de Bordo — registros ainda não enviados\n\n${rows.join('\n\n')}`;
   }
 
