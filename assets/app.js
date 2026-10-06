@@ -45,6 +45,7 @@
   let progressWatchTimer = null;
   let endControlTimer = null;
   let endControlPinned = false;
+  let logbookProgressStage = null;
 
   const DAY_MS = 86400000;
   const PROFESSOR_TZ = 'America/Sao_Paulo';
@@ -694,37 +695,33 @@
     document.getElementById('discardReflection').addEventListener('click',()=>{currentSession=null;sessionState='preparation';closeUnit();});
   }
 
-  function saveCurrentSession() {
+  async function saveCurrentSession() {
     if(!currentSession || currentSession.saved) return;
     const lucidityEl=document.getElementById('lucidity'), notesEl=document.getElementById('notes');
     if(!lucidityEl || lucidityEl.dataset.chosen!=='true'){showToast('Escolha o nível de concentração antes de salvar.');lucidityEl?.focus();return;}
-    const cfg=config(), st=stageState();
+
+    const savedStage=selectedStage;
+    const cfg=config(savedStage), st=stageState(savedStage);
     const dateKey=localDateKey(currentSession.startedAt);
-    const effectivePractice=config().audioUrl ? Number(currentSession.playbackSeconds||0) : Number(currentSession.elapsedSeconds||0);
+    const effectivePractice=cfg.audioUrl ? Number(currentSession.playbackSeconds||0) : Number(currentSession.elapsedSeconds||0);
     const valid=effectivePractice>=cfg.minSessionSeconds;
     const saved={...currentSession,dateKey,lucidity:Number(lucidityEl.value),notes:notesEl.value.trim(),valid,countedForProgress:false,savedAt:Date.now(),sharedAt:null};
-    st.sessions.push(saved);
-    appendLogbookEntry(saved,selectedStage);
-    if (valid) progress.inactivityAnchorAt = saved.savedAt;
-    const refreshed=refreshWindowFlags(selectedStage);
-    currentSession={...saved,countedForProgress:Boolean(saved.countedForProgress),saved:true};
-    const count=refreshed.count; let advanced=false;
-    if(count>=cfg.sessionsRequired && !st.completedAt){advanced=completeStage(selectedStage).advanced;}
-    saveProgress({immediate:true}); renderSavedResult(currentSession,advanced); updateHome({animateAdvance:Boolean(saved.countedForProgress) || advanced});
-  }
 
-  function renderSavedResult(savedSession, advanced) {
-    const saveArea=document.getElementById('saveArea'); document.getElementById('saveSession').disabled=true;
-    const cfg=config(), st=stageState(), count=completedCount(), pct=Math.round((count/cfg.sessionsRequired)*100), prior=Math.max(0,count-(savedSession.countedForProgress?1:0)), priorPct=Math.round((prior/cfg.sessionsRequired)*100);
-    const stageFinished=Boolean(st.completedAt), remaining=Math.max(0,cfg.sessionsRequired-count);
-    const message=savedSession.countedForProgress?'Sessão válida incorporada à janela atual.':savedSession.valid?'Sessão registrada como prática adicional.':'Sessão registrada como prática livre; o progresso começa a partir do tempo mínimo definido para a etapa.';
-    const resultClass=savedSession.countedForProgress?'good':'neutral';
-    const progressStatus=stageFinished
-      ? `Meta cumprida nos últimos ${cfg.deadlineDays} dias. Etapa concluída.`
-      : `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão válida' : 'sessões válidas'} nos últimos ${cfg.deadlineDays} dias.`;
-    saveArea.innerHTML=`<div class="save-result ${resultClass}">${escapeHtml(message)}</div><section class="progress-card"><h3>Seu progresso</h3><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" id="progressFill" style="width:${priorPct}%"></div><span class="progress-mark" style="left:0%"></span><span class="progress-mark" style="left:33.333%"></span><span class="progress-mark" style="left:66.666%"></span><span class="progress-mark" style="left:100%"></span><span class="progress-elephant" id="progressElephant" style="left:${priorPct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${cfg.sessionsRequired}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>${stageFinished?`<div class="completion"><div class="completion-symbol">🐘</div><h2>${selectedStage===9?'Caminho concluído.':'Etapa concluída.'}</h2><p>${advanced?'A próxima etapa foi liberada e já aparece no caminho.':'Esta etapa permanece disponível no seu histórico.'}</p><button class="primary" id="completeStage">Voltar ao caminho</button></div>`:''}`;
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{const pe=document.getElementById('progressElephant'),pf=document.getElementById('progressFill');if(savedSession.countedForProgress&&pe)pe.classList.add('session-advance');if(pe)pe.style.left=`${pct}%`;if(pf)pf.style.width=`${pct}%`;}));
-    document.getElementById('completeStage')?.addEventListener('click',()=>{el.modal.classList.add('hidden');document.body.style.overflow='';selectedStage=progress.currentStage;updateHome({animateAdvance:advanced});showSessionCompletionPopup(advanced);});
+    st.sessions.push(saved);
+    appendLogbookEntry(saved,savedStage);
+    if(valid) progress.inactivityAnchorAt=saved.savedAt;
+
+    const refreshed=refreshWindowFlags(savedStage);
+    currentSession={...saved,countedForProgress:Boolean(saved.countedForProgress),saved:true};
+
+    if(refreshed.count>=cfg.sessionsRequired && !st.completedAt) completeStage(savedStage);
+
+    document.getElementById('saveSession').disabled=true;
+    await saveProgress({immediate:true});
+    updateHome({animateAdvance:Boolean(saved.countedForProgress) || savedStage!==progress.currentStage});
+
+    closeUnit();
+    openLogbook(savedStage);
   }
 
   function buildShareText(session) {
@@ -737,24 +734,45 @@
     return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
   }
 
+  function logbookProgressMarkup(stageNumber) {
+    const maxStage=totalStages();
+    const stage=Math.max(1,Math.min(maxStage,Number(stageNumber||progress?.currentStage||1)));
+    const cfg=config(stage), st=stageState(stage);
+    const count=completedCount(stage);
+    const required=Math.max(1,Number(cfg.sessionsRequired||1));
+    const pct=Math.max(0,Math.min(100,Math.round((count/required)*100)));
+    const remaining=Math.max(0,required-count);
+    const stageFinished=Boolean(st?.completedAt);
+    const progressStatus=stageFinished
+      ? `Meta cumprida nos últimos ${cfg.deadlineDays} dias. Etapa concluída.`
+      : `${remaining===1?'Falta':'Faltam'} ${remaining} ${remaining===1?'sessão válida':'sessões válidas'} nos últimos ${cfg.deadlineDays} dias.`;
+    const marks=Array.from({length:required+1},(_,index)=>{
+      const left=required===0?0:(index/required)*100;
+      return `<span class="progress-mark" style="left:${left}%"></span>`;
+    }).join('');
+
+    return `<section class="progress-card logbook-progress-card"><div class="logbook-progress-heading"><div><small>Etapa ${stage}</small><h3>Seu progresso</h3></div><span>${escapeHtml(cfg.unitName||'')}</span></div><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" style="width:${pct}%"></div>${marks}<span class="progress-elephant" style="left:${pct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${required}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>`;
+  }
+
   function renderLogbook() {
     if(!el.logbookList) return;
     const state=professorSendState();
     const entries=state.entries.slice().sort((a,b)=>b.at-a.at);
-    if(!entries.length) {
-      el.logbookList.innerHTML='<div class="logbook-empty">Seu Diário de Bordo começa quando uma prática é registrada.</div>';
-      return;
-    }
+    const progressMarkup=logbookProgressMarkup(logbookProgressStage || progress?.currentStage);
 
     const weeklyShare=state.due
       ? `<section class="logbook-weekly-share"><strong>Envio semanal ao professor</strong><p>${state.unsent.length===1?'Há 1 registro ainda não enviado.':`Há ${state.unsent.length} registros ainda não enviados.`} O envio reúne todos eles em uma única mensagem.</p><a class="whatsapp" id="logbookShareWhatsapp" target="_blank" rel="noopener">Enviar ao Professor</a></section>`
       : '';
 
-    el.logbookList.innerHTML=weeklyShare+entries.map(entry=>{
-      const stageLabel=entry.stage ? `Etapa ${entry.stage}${entry.unitName?` — ${entry.unitName}`:''}` : entry.unitName;
-      const sentStatus=entry.sentAt ? '<div class="logbook-sent-status">✔️ enviado ao professor</div>' : '';
-      return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p>${sentStatus}</article>`;
-    }).join('');
+    const recordsMarkup=entries.length
+      ? entries.map(entry=>{
+          const stageLabel=entry.stage ? `Etapa ${entry.stage}${entry.unitName?` — ${entry.unitName}`:''}` : entry.unitName;
+          const sentStatus=entry.sentAt ? '<div class="logbook-sent-status">✔️ enviado ao professor</div>' : '';
+          return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p>${sentStatus}</article>`;
+        }).join('')
+      : '<div class="logbook-empty">Seu Diário de Bordo começa quando uma prática é registrada.</div>';
+
+    el.logbookList.innerHTML=progressMarkup+weeklyShare+recordsMarkup;
 
     const share=document.getElementById('logbookShareWhatsapp');
     if(share){
@@ -764,15 +782,18 @@
     }
   }
 
-  function openLogbook() {
+  function openLogbook(stageNumber=progress?.currentStage) {
+    logbookProgressStage=Math.max(1,Math.min(totalStages(),Number(stageNumber||progress?.currentStage||1)));
     renderLogbook();
     el.logbookModal?.classList.remove('hidden');
     document.body.style.overflow='hidden';
+    setTimeout(()=>{const scroll=el.logbookModal?.querySelector('.logbook-scroll');if(scroll)scroll.scrollTop=0;},0);
   }
 
   function closeLogbook() {
     el.logbookModal?.classList.add('hidden');
     document.body.style.overflow='';
+    logbookProgressStage=null;
   }
 
   function showSessionCompletionPopup(advanced) {
@@ -811,7 +832,7 @@
   });
   el.scroll.addEventListener('pointerdown',revealEndControlFromInteraction,{passive:true});
   el.scroll.addEventListener('keydown',revealEndControlFromInteraction);
-  el.logbookButton?.addEventListener('click',openLogbook);
+  el.logbookButton?.addEventListener('click',()=>openLogbook());
   el.closeLogbook?.addEventListener('click',closeLogbook);
   el.logbookModal?.addEventListener('click',event=>{if(event.target===el.logbookModal)closeLogbook();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el.logbookModal?.classList.contains('hidden'))closeLogbook();});
