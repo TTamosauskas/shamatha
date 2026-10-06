@@ -109,6 +109,25 @@
     return Number.isFinite(parsed) && parsed>0 ? parsed : 0;
   }
 
+  function normalizeStageCode(value) {
+    const code=String(value??'').trim().replace(/^Etapa\s+/i,'');
+    if(/^\d+\.\d+$/.test(code)) return code;
+    if(/^\d+$/.test(code)) return `${code}.0`;
+    return '';
+  }
+
+  function logbookStageCode(raw, stage=null) {
+    const explicit=normalizeStageCode(raw?.stageCode || raw?.childDisplayCode);
+    if(explicit) return explicit;
+    const stageId=String(raw?.stageId || raw?.childStageId || '');
+    if(stageId) {
+      const child=(appData?.childStages||[]).find(item=>String(item?.stageId||'')===stageId);
+      const childCode=normalizeStageCode(child?.displayCode);
+      if(childCode) return childCode;
+    }
+    return normalizeStageCode(stage);
+  }
+
   function normalizeLogbookRecord(raw) {
     if(!raw || typeof raw!=='object') return null;
     const at=logbookTime(raw.at || raw.savedAt || raw.endedAt || raw.startedAt);
@@ -119,20 +138,23 @@
     const notes=String(raw.notes||'').trim().slice(0,2000);
     const stageValue=Number(raw.stage);
     const stage=Number.isInteger(stageValue) && stageValue>0 ? stageValue : null;
-    const unitName=String(raw.unitName||'').trim().slice(0,160);
+    const stageId=String(raw.stageId||raw.childStageId||'');
+    const stageCode=logbookStageCode({...raw,stageId},stage);
     const sentAtValue=logbookTime(raw.sentAt || raw.sharedAt);
     const fallbackText=`Hoje meditei por ${formatRoundedDuration(durationSeconds)}${concentration==null?'.':` e estimo ${concentration}% de concentração.`}${notes?` ${notes}`:''}`;
+    const baseText=String(raw.text||fallbackText).trim().replace(/^\[Etapa\s+\d+(?:\.\d+)?\]\s*/i,'');
+    const text=(stageCode?`[Etapa ${stageCode}] `:'')+baseText;
     return {
       id:String(raw.id || `${at}:${stage||''}:${durationSeconds}:${concentration??''}`),
       at,
       stage,
-      stageId:String(raw.stageId||''),
-      unitName,
+      stageCode,
+      stageId,
       durationSeconds,
       concentration,
       notes,
       sentAt:sentAtValue || null,
-      text:String(raw.text||fallbackText).trim().slice(0,2600)
+      text:text.slice(0,2600)
     };
   }
 
@@ -153,8 +175,8 @@
       id:session?.id || `${at}:${stage||''}`,
       at,
       stage:Number.isInteger(stage) && stage>0 ? stage : null,
-      stageId:session?.childStageId || session?.stageId || cfg?.stageId || '',
-      unitName:session?.unitName || cfg?.unitName || '',
+      stageId:session?.childStageId || session?.stageId || cfg?.childStageId || cfg?.stageId || '',
+      stageCode:session?.childDisplayCode || cfg?.childDisplayCode || `${stage}.0`,
       durationSeconds:Number(session?.elapsedSeconds ?? session?.playbackSeconds ?? 0),
       concentration:session?.lucidity,
       notes:session?.notes || '',
@@ -226,7 +248,7 @@
 
   function buildProfessorWeeklyText(entries) {
     const ordered=entries.slice().sort((a,b)=>a.at-b.at);
-    const rows=ordered.map(entry=>`${formatLogbookDate(entry.at)}\n${entry.text}`);
+    const rows=ordered.map(entry=>entry.text);
     return `Diário de Bordo — registros ainda não enviados\n\n${rows.join('\n\n')}`;
   }
 
@@ -766,9 +788,8 @@
 
     const recordsMarkup=entries.length
       ? entries.map(entry=>{
-          const stageLabel=entry.stage ? `Etapa ${entry.stage}${entry.unitName?` — ${entry.unitName}`:''}` : entry.unitName;
           const sentStatus=entry.sentAt ? '<div class="logbook-sent-status">✔️ enviado ao professor</div>' : '';
-          return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p>${sentStatus}</article>`;
+          return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time></div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p>${sentStatus}</article>`;
         }).join('')
       : '<div class="logbook-empty">Seu Diário de Bordo começa quando uma prática é registrada.</div>';
 
