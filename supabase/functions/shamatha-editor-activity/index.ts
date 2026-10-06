@@ -98,11 +98,18 @@ function logbookText(durationSeconds: number, concentration: number | null, note
   return `Hoje meditei por ${roundedDuration(durationSeconds)}${concentrationCopy}${notes ? ` ${notes}` : ''}`;
 }
 
-function extractLogbook(data: any) {
-  const transitionSentAt = sessionTime(data?.logbookTransitionSentAt);
-  const byId = new Map<string, { id:string; at:string; stage:number | null; unitName:string; text:string; sentAt:string | null }>();
+function normalizeStageCode(value: any) {
+  const code = String(value ?? '').trim().replace(/^Etapa\s+/i, '');
+  if (/^\d+\.\d+$/.test(code)) return code;
+  if (/^\d+$/.test(code)) return `${code}.0`;
+  return '';
+}
 
-  const add = (raw: any, fallbackStage: number | null = null) => {
+function extractLogbook(data: any, stageCodes = new Map<string,string>()) {
+  const transitionSentAt = sessionTime(data?.logbookTransitionSentAt);
+  const byId = new Map<string, { id:string; at:string; stage:number | null; stageCode:string; text:string; sentAt:string | null }>();
+
+  const add = (raw: any, fallbackStage: number | null = null, fallbackStageCode = '') => {
     const time = sessionTime(raw?.at) || sessionTime(raw?.savedAt) || sessionTime(raw?.endedAt) || sessionTime(raw?.startedAt);
     if (!time) return;
     const duration = Math.max(0, Math.round(Number(raw?.durationSeconds ?? raw?.elapsedSeconds ?? raw?.playbackSeconds ?? 0)));
@@ -113,15 +120,24 @@ function extractLogbook(data: any) {
     const notes = String(raw?.notes || '').trim().slice(0, 2000);
     const stageValue = Number(raw?.stage ?? fallbackStage);
     const stage = Number.isInteger(stageValue) && stageValue > 0 ? stageValue : null;
+    const stageId = String(raw?.stageId || raw?.childStageId || '');
+    const stageCode =
+      normalizeStageCode(raw?.stageCode || raw?.childDisplayCode) ||
+      stageCodes.get(stageId) ||
+      normalizeStageCode(fallbackStageCode) ||
+      normalizeStageCode(stage);
     const id = String(raw?.id || `${time}:${stage || ''}:${duration}:${concentration ?? ''}`);
-    const text = String(raw?.text || logbookText(duration, concentration, notes)).trim().slice(0, 2600);
+    const baseText = String(raw?.text || logbookText(duration, concentration, notes))
+      .trim()
+      .replace(/^\[Etapa\s+\d+(?:\.\d+)?\]\s*/i, '');
+    const text = `${stageCode ? `[Etapa ${stageCode}] ` : ''}${baseText}`.slice(0, 2600);
     const explicitSentAt = sessionTime(raw?.sentAt) || sessionTime(raw?.sharedAt);
     const sentAt = explicitSentAt || (transitionSentAt && time <= transitionSentAt ? transitionSentAt : 0);
     byId.set(id, {
       id,
       at:new Date(time).toISOString(),
       stage,
-      unitName:String(raw?.unitName || '').trim().slice(0, 160),
+      stageCode,
       text,
       sentAt:sentAt ? new Date(sentAt).toISOString() : null
     });
@@ -133,7 +149,8 @@ function extractLogbook(data: any) {
   if (source) {
     for (const [stageKey, stageState] of Object.entries(source) as Array<[string, any]>) {
       const fallbackStage = legacy === source && /^\d+$/.test(stageKey) ? Number(stageKey) : null;
-      for (const session of Array.isArray(stageState?.sessions) ? stageState.sessions : []) add(session, fallbackStage);
+      const fallbackStageCode = stageCodes.get(stageKey) || (fallbackStage ? `${fallbackStage}.0` : '');
+      for (const session of Array.isArray(stageState?.sessions) ? stageState.sessions : []) add(session, fallbackStage, fallbackStageCode);
     }
   }
 
@@ -189,6 +206,25 @@ function orderedRoots(rows: any[]) {
     .filter(row => !row.parent_stage_id && row.is_active)
     .slice()
     .sort((a,b) => Number(a.position ?? a.number) - Number(b.position ?? b.number));
+}
+
+function buildStageCodeMap(rows: any[]) {
+  const codes = new Map<string,string>();
+  const roots = orderedRoots(rows);
+  for (const root of roots) {
+    const parentPosition = Number(root.position ?? root.number ?? 1);
+    codes.set(String(root.stage_id), `${parentPosition}.0`);
+    const children = rows
+      .filter(row => row.is_active && row.parent_stage_id === root.stage_id)
+      .slice()
+      .sort((a,b) =>
+        Number(a.child_position ?? 999) - Number(b.child_position ?? 999) ||
+        Number(a.release_day ?? 999) - Number(b.release_day ?? 999) ||
+        Number(a.number ?? 999) - Number(b.number ?? 999)
+      );
+    children.forEach((child,index) => codes.set(String(child.stage_id), `${parentPosition}.${index + 1}`));
+  }
+  return codes;
 }
 
 function stageStates(data: any, roots: any[]) {
@@ -374,14 +410,16 @@ Deno.serve(async (req: Request) => {
 
     const [
       { data: profiles, error: profilesError },
-      { data: rows, error: progressError },
+      { data: progressRows, error: progressError },
       { data: notes, error: notesError },
-      confirmedByEmail
+      confirmedByEmail,
+      stageRows
     ] = await Promise.all([
       admin.from('profiles').select('id,email'),
       admin.from('progress').select('user_id,data'),
       admin.from('student_editor_notes').select('user_id,note'),
-      authUsersByEmail()
+      authUsersByEmail(),
+      activeStageRows()
     ]);
     if (profilesError) throw profilesError;
     if (progressError) throw progressError;
@@ -389,11 +427,12 @@ Deno.serve(async (req: Request) => {
 
     const emailById = new Map((profiles || []).map(row => [row.id, String(row.email || '').trim().toLowerCase()]));
     const sessionsByUserId: Record<string, Array<{ at:string; durationSeconds:number; concentration:number | null }>> = {};
-    const logbookByUserId: Record<string, Array<{ id:string; at:string; stage:number | null; unitName:string; text:string; sentAt:string | null }>> = {};
+    const logbookByUserId: Record<string, Array<{ id:string; at:string; stage:number | null; stageCode:string; text:string; sentAt:string | null }>> = {};
     const lastSessionByEmail: Record<string, string> = {};
-    for (const row of rows || []) {
+    const stageCodes = buildStageCodeMap(stageRows || []);
+    for (const row of progressRows || []) {
       const sessions = extractSessions(row.data);
-      const logbook = extractLogbook(row.data);
+      const logbook = extractLogbook(row.data, stageCodes);
       if (sessions.length) {
         sessionsByUserId[row.user_id] = sessions;
         const email = emailById.get(row.user_id);
