@@ -159,14 +159,16 @@
   }
 
   function reconcileLogbook() {
-    const before=JSON.stringify(Array.isArray(progress?.logbook)?progress.logbook:[]);
-    const merged=[...(Array.isArray(progress?.logbook)?progress.logbook:[])];
+    const existing=Array.isArray(progress?.logbook)?progress.logbook:[];
+    const before=JSON.stringify(existing);
+    const merged=[];
     for(const [stageKey,state] of Object.entries(progress?.stages||{})) {
       for(const session of Array.isArray(state?.sessions)?state.sessions:[]) {
         const entry=logbookEntryFromSession(session,Number(stageKey));
         if(entry) merged.push(entry);
       }
     }
+    merged.push(...existing);
     progress.logbook=normalizeLogbook(merged);
     return before!==JSON.stringify(progress.logbook);
   }
