@@ -168,7 +168,8 @@
     if (!entries.length) return;
     const content = entries.map(entry => {
       const stage = entry?.stage ? `Etapa ${entry.stage}${entry.unitName ? ` — ${entry.unitName}` : ''}` : String(entry?.unitName || '');
-      return `<article class="editor-logbook-entry"><div class="editor-logbook-meta"><time>${escapeHtml(logbookDateLabel(entry?.at))}</time>${stage ? `<span>${escapeHtml(stage)}</span>` : ''}</div><p>${escapeHtml(entry?.text || '')}</p></article>`;
+      const sent = entry?.sentAt ? '<div class="editor-logbook-sent">✔️ enviado ao professor</div>' : '';
+      return `<article class="editor-logbook-entry"><div class="editor-logbook-meta"><time>${escapeHtml(logbookDateLabel(entry?.at))}</time>${stage ? `<span>${escapeHtml(stage)}</span>` : ''}</div><p>${escapeHtml(entry?.text || '')}</p>${sent}</article>`;
     }).join('');
     openPopover(anchor, `<div class="user-popover-title">Diário de Bordo</div><div class="editor-logbook-list">${content}</div>`, 'session-history-popover logbook-popover');
   }
