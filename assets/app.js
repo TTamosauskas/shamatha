@@ -23,7 +23,11 @@
     modalTitle: document.getElementById('modalTitle'),
     accountEmail: document.getElementById('accountEmail'),
     editorLink: document.getElementById('editorLink'),
-    logout: document.getElementById('logout')
+    logout: document.getElementById('logout'),
+    logbookButton: document.getElementById('logbookButton'),
+    logbookModal: document.getElementById('logbookModal'),
+    closeLogbook: document.getElementById('closeLogbook'),
+    logbookList: document.getElementById('logbookList')
   };
 
   let appData = null;
@@ -94,6 +98,83 @@
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
     return 0;
+  }
+
+  function logbookTime(value) {
+    const numeric=Number(value);
+    if(Number.isFinite(numeric) && numeric>0) return numeric;
+    const parsed=new Date(value).getTime();
+    return Number.isFinite(parsed) && parsed>0 ? parsed : 0;
+  }
+
+  function normalizeLogbookRecord(raw) {
+    if(!raw || typeof raw!=='object') return null;
+    const at=logbookTime(raw.at || raw.savedAt || raw.endedAt || raw.startedAt);
+    if(!at) return null;
+    const durationSeconds=Math.max(0,Math.round(Number(raw.durationSeconds ?? raw.elapsedSeconds ?? raw.playbackSeconds ?? 0)));
+    const concentrationValue=Number(raw.concentration ?? raw.lucidity);
+    const concentration=Number.isFinite(concentrationValue)?Math.max(0,Math.min(100,Math.round(concentrationValue))):null;
+    const notes=String(raw.notes||'').trim().slice(0,2000);
+    const stageValue=Number(raw.stage);
+    const stage=Number.isInteger(stageValue) && stageValue>0 ? stageValue : null;
+    const unitName=String(raw.unitName||'').trim().slice(0,160);
+    const fallbackText=`Hoje meditei por ${formatRoundedDuration(durationSeconds)}${concentration==null?'.':` e estimo ${concentration}% de concentração.`}${notes?` ${notes}`:''}`;
+    return {
+      id:String(raw.id || `${at}:${stage||''}:${durationSeconds}:${concentration??''}`),
+      at,
+      stage,
+      stageId:String(raw.stageId||''),
+      unitName,
+      durationSeconds,
+      concentration,
+      notes,
+      text:String(raw.text||fallbackText).trim().slice(0,2600)
+    };
+  }
+
+  function normalizeLogbook(entries) {
+    const byId=new Map();
+    for(const raw of Array.isArray(entries)?entries:[]) {
+      const entry=normalizeLogbookRecord(raw);
+      if(entry) byId.set(entry.id,entry);
+    }
+    return [...byId.values()].sort((a,b)=>a.at-b.at).slice(-50);
+  }
+
+  function logbookEntryFromSession(session, stageNumber=selectedStage) {
+    const at=sessionTime(session)||Date.now();
+    const stage=Number(stageNumber);
+    const cfg=Number.isInteger(stage) && stage>0 ? appData?.stages?.[stage-1] : null;
+    return normalizeLogbookRecord({
+      id:session?.id || `${at}:${stage||''}`,
+      at,
+      stage:Number.isInteger(stage) && stage>0 ? stage : null,
+      stageId:session?.childStageId || session?.stageId || cfg?.stageId || '',
+      unitName:session?.unitName || cfg?.unitName || '',
+      durationSeconds:Number(session?.elapsedSeconds ?? session?.playbackSeconds ?? 0),
+      concentration:session?.lucidity,
+      notes:session?.notes || '',
+      text:buildShareText(session)
+    });
+  }
+
+  function reconcileLogbook() {
+    const before=JSON.stringify(Array.isArray(progress?.logbook)?progress.logbook:[]);
+    const merged=[...(Array.isArray(progress?.logbook)?progress.logbook:[])];
+    for(const [stageKey,state] of Object.entries(progress?.stages||{})) {
+      for(const session of Array.isArray(state?.sessions)?state.sessions:[]) {
+        const entry=logbookEntryFromSession(session,Number(stageKey));
+        if(entry) merged.push(entry);
+      }
+    }
+    progress.logbook=normalizeLogbook(merged);
+    return before!==JSON.stringify(progress.logbook);
+  }
+
+  function appendLogbookEntry(session, stageNumber=selectedStage) {
+    const entry=logbookEntryFromSession(session,stageNumber);
+    if(!entry) return;
+    progress.logbook=normalizeLogbook([...(Array.isArray(progress.logbook)?progress.logbook:[]),entry]);
   }
 
   function sessionDateKey(session) {
@@ -551,6 +632,7 @@
     const valid=effectivePractice>=cfg.minSessionSeconds;
     const saved={...currentSession,dateKey,lucidity:Number(lucidityEl.value),notes:notesEl.value.trim(),valid,countedForProgress:false,savedAt:Date.now(),sharedAt:null};
     st.sessions.push(saved);
+    appendLogbookEntry(saved,selectedStage);
     if (valid) progress.inactivityAnchorAt = saved.savedAt;
     const refreshed=refreshWindowFlags(selectedStage);
     currentSession={...saved,countedForProgress:Boolean(saved.countedForProgress),saved:true};
@@ -580,6 +662,36 @@
 
   function markShared(id) {
     const st=stageState(); const index=st.sessions.findIndex(s=>s.id===id); if(index>=0){st.sessions[index].sharedAt=Date.now();saveProgress();}
+  }
+
+  function formatLogbookDate(value) {
+    const date=new Date(logbookTime(value));
+    if(!Number.isFinite(date.getTime())) return 'Data indisponível';
+    return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
+  }
+
+  function renderLogbook() {
+    if(!el.logbookList) return;
+    const entries=normalizeLogbook(progress?.logbook||[]).slice().sort((a,b)=>b.at-a.at);
+    if(!entries.length) {
+      el.logbookList.innerHTML='<div class="logbook-empty">Seu Diário de Bordo começa quando uma prática é registrada.</div>';
+      return;
+    }
+    el.logbookList.innerHTML=entries.map(entry=>{
+      const stageLabel=entry.stage ? `Etapa ${entry.stage}${entry.unitName?` — ${entry.unitName}`:''}` : entry.unitName;
+      return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p></article>`;
+    }).join('');
+  }
+
+  function openLogbook() {
+    renderLogbook();
+    el.logbookModal?.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+  }
+
+  function closeLogbook() {
+    el.logbookModal?.classList.add('hidden');
+    document.body.style.overflow='';
   }
 
   function showSessionCompletionPopup(advanced) {
@@ -618,6 +730,10 @@
   });
   el.scroll.addEventListener('pointerdown',revealEndControlFromInteraction,{passive:true});
   el.scroll.addEventListener('keydown',revealEndControlFromInteraction);
+  el.logbookButton?.addEventListener('click',openLogbook);
+  el.closeLogbook?.addEventListener('click',closeLogbook);
+  el.logbookModal?.addEventListener('click',event=>{if(event.target===el.logbookModal)closeLogbook();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el.logbookModal?.classList.contains('hidden'))closeLogbook();});
 
   el.continuePath.addEventListener('click',()=>{
     if(recoveredSessionPending&&currentSession){recoveredSessionPending=false;openUnit('reflection');showToast('A prática interrompida foi recuperada para registro.');return;}
@@ -641,6 +757,7 @@
 
   async function init() {
     appData=await api('/api/app-data'); progress=appData.progress;
+    if(reconcileLogbook()) await saveProgress({immediate:true});
     el.accountEmail.textContent=appData.user.email;
     if(appData.user.role==='editor')el.editorLink.classList.remove('hidden');
     const live=String(appData.settings.liveClassUrl||'').trim();
