@@ -47,6 +47,7 @@
   let endControlPinned = false;
 
   const DAY_MS = 86400000;
+  const PROFESSOR_TZ = 'America/Sao_Paulo';
   const BASE_JOURNEY_PATH = 'M260 1225 C620 1165 760 1085 640 975 C520 865 235 880 250 745 C265 610 720 655 730 505 C740 355 430 350 540 210 C600 135 690 110 760 95';
   const stagePositions = { 1:{left:26,top:87.5} };
   function totalStages() { return Math.max(1, Number(appData?.stages?.length || 1)); }
@@ -118,6 +119,7 @@
     const stageValue=Number(raw.stage);
     const stage=Number.isInteger(stageValue) && stageValue>0 ? stageValue : null;
     const unitName=String(raw.unitName||'').trim().slice(0,160);
+    const sentAtValue=logbookTime(raw.sentAt || raw.sharedAt);
     const fallbackText=`Hoje meditei por ${formatRoundedDuration(durationSeconds)}${concentration==null?'.':` e estimo ${concentration}% de concentração.`}${notes?` ${notes}`:''}`;
     return {
       id:String(raw.id || `${at}:${stage||''}:${durationSeconds}:${concentration??''}`),
@@ -128,6 +130,7 @@
       durationSeconds,
       concentration,
       notes,
+      sentAt:sentAtValue || null,
       text:String(raw.text||fallbackText).trim().slice(0,2600)
     };
   }
@@ -154,6 +157,7 @@
       durationSeconds:Number(session?.elapsedSeconds ?? session?.playbackSeconds ?? 0),
       concentration:session?.lucidity,
       notes:session?.notes || '',
+      sentAt:session?.sentAt || session?.sharedAt || (Number(progress?.logbookTransitionSentAt || 0) >= at ? Number(progress.logbookTransitionSentAt) : null),
       text:buildShareText(session)
     });
   }
@@ -177,6 +181,72 @@
     const entry=logbookEntryFromSession(session,stageNumber);
     if(!entry) return;
     progress.logbook=normalizeLogbook([...(Array.isArray(progress.logbook)?progress.logbook:[]),entry]);
+  }
+
+  function professorDateParts(value=Date.now()) {
+    const date=new Date(value);
+    const parts=new Intl.DateTimeFormat('en-US',{
+      timeZone:PROFESSOR_TZ,year:'numeric',month:'2-digit',day:'2-digit'
+    }).formatToParts(date);
+    return Object.fromEntries(parts.filter(part=>part.type!=='literal').map(part=>[part.type,Number(part.value)]));
+  }
+
+  function professorDateKey(value=Date.now()) {
+    const parts=professorDateParts(value);
+    return `${parts.year}-${String(parts.month).padStart(2,'0')}-${String(parts.day).padStart(2,'0')}`;
+  }
+
+  function professorCycleKey(value=Date.now()) {
+    const parts=professorDateParts(value);
+    const utcDay=Date.UTC(parts.year,parts.month-1,parts.day);
+    const weekday=new Date(utcDay).getUTCDay();
+    const daysSinceThursday=(weekday-4+7)%7;
+    const thursday=new Date(utcDay-daysSinceThursday*DAY_MS);
+    return [
+      thursday.getUTCFullYear(),
+      String(thursday.getUTCMonth()+1).padStart(2,'0'),
+      String(thursday.getUTCDate()).padStart(2,'0')
+    ].join('-');
+  }
+
+  function professorSendState(now=Date.now()) {
+    const entries=normalizeLogbook(progress?.logbook||[]);
+    const unsent=entries.filter(entry=>!entry.sentAt);
+    const cycleKey=professorCycleKey(now);
+    const hasDueEntry=unsent.some(entry=>professorDateKey(entry.at)<=cycleKey);
+    const due=Boolean(
+      appData?.settings?.whatsappPhone &&
+      unsent.length &&
+      hasDueEntry &&
+      String(progress?.lastProfessorSentCycle||'')!==cycleKey
+    );
+    return { entries, unsent, cycleKey, due };
+  }
+
+  function buildProfessorWeeklyText(entries) {
+    const ordered=entries.slice().sort((a,b)=>a.at-b.at);
+    const rows=ordered.map(entry=>`${formatLogbookDate(entry.at)}\n${entry.text}`);
+    return `Diário de Bordo — registros ainda não enviados\n\n${rows.join('\n\n')}`;
+  }
+
+  async function markProfessorLogbookSent(entries, cycleKey) {
+    const ids=new Set(entries.map(entry=>String(entry.id)));
+    const sentAt=Date.now();
+    progress.logbook=normalizeLogbook((progress.logbook||[]).map(raw=>{
+      const entry=normalizeLogbookRecord(raw);
+      if(!entry) return raw;
+      return ids.has(String(entry.id)) ? {...entry,sentAt} : entry;
+    }));
+    progress.lastProfessorSentCycle=cycleKey;
+
+    for(const state of Object.values(progress?.stages||{})) {
+      for(const session of state?.sessions||[]) {
+        if(ids.has(String(session?.id||''))) session.sharedAt=sentAt;
+      }
+    }
+
+    await saveProgress({immediate:true});
+    renderLogbook();
   }
 
   function sessionDateKey(session) {
@@ -648,22 +718,17 @@
     const cfg=config(), st=stageState(), count=completedCount(), pct=Math.round((count/cfg.sessionsRequired)*100), prior=Math.max(0,count-(savedSession.countedForProgress?1:0)), priorPct=Math.round((prior/cfg.sessionsRequired)*100);
     const stageFinished=Boolean(st.completedAt), remaining=Math.max(0,cfg.sessionsRequired-count);
     const message=savedSession.countedForProgress?'Sessão válida incorporada à janela atual.':savedSession.valid?'Sessão registrada como prática adicional.':'Sessão registrada como prática livre; o progresso começa a partir do tempo mínimo definido para a etapa.';
-    const preview=buildShareText(savedSession), resultClass=savedSession.countedForProgress?'good':'neutral';
+    const resultClass=savedSession.countedForProgress?'good':'neutral';
     const progressStatus=stageFinished
       ? `Meta cumprida nos últimos ${cfg.deadlineDays} dias. Etapa concluída.`
       : `${remaining === 1 ? 'Falta' : 'Faltam'} ${remaining} ${remaining === 1 ? 'sessão válida' : 'sessões válidas'} nos últimos ${cfg.deadlineDays} dias.`;
-    saveArea.innerHTML=`<div class="save-result ${resultClass}">${escapeHtml(message)}</div><section class="progress-card"><h3>Seu progresso</h3><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" id="progressFill" style="width:${priorPct}%"></div><span class="progress-mark" style="left:0%"></span><span class="progress-mark" style="left:33.333%"></span><span class="progress-mark" style="left:66.666%"></span><span class="progress-mark" style="left:100%"></span><span class="progress-elephant" id="progressElephant" style="left:${priorPct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${cfg.sessionsRequired}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>${appData.settings.whatsappPhone?`<section class="share-card"><pre class="preview">${escapeHtml(preview)}</pre><div class="share-actions"><a class="whatsapp" id="shareWhatsapp" target="_blank" rel="noopener">Enviar ao Professor</a></div></section>`:''}${stageFinished?`<div class="completion"><div class="completion-symbol">🐘</div><h2>${selectedStage===9?'Caminho concluído.':'Etapa concluída.'}</h2><p>${advanced?'A próxima etapa foi liberada e já aparece no caminho.':'Esta etapa permanece disponível no seu histórico.'}</p><button class="primary" id="completeStage">Voltar ao caminho</button></div>`:''}`;
+    saveArea.innerHTML=`<div class="save-result ${resultClass}">${escapeHtml(message)}</div><section class="progress-card"><h3>Seu progresso</h3><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" id="progressFill" style="width:${priorPct}%"></div><span class="progress-mark" style="left:0%"></span><span class="progress-mark" style="left:33.333%"></span><span class="progress-mark" style="left:66.666%"></span><span class="progress-mark" style="left:100%"></span><span class="progress-elephant" id="progressElephant" style="left:${priorPct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${cfg.sessionsRequired}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>${stageFinished?`<div class="completion"><div class="completion-symbol">🐘</div><h2>${selectedStage===9?'Caminho concluído.':'Etapa concluída.'}</h2><p>${advanced?'A próxima etapa foi liberada e já aparece no caminho.':'Esta etapa permanece disponível no seu histórico.'}</p><button class="primary" id="completeStage">Voltar ao caminho</button></div>`:''}`;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{const pe=document.getElementById('progressElephant'),pf=document.getElementById('progressFill');if(savedSession.countedForProgress&&pe)pe.classList.add('session-advance');if(pe)pe.style.left=`${pct}%`;if(pf)pf.style.width=`${pct}%`;}));
-    const share=document.getElementById('shareWhatsapp'); if(share){share.href=`https://api.whatsapp.com/send?phone=${encodeURIComponent(appData.settings.whatsappPhone)}&text=${encodeURIComponent(preview)}`;share.addEventListener('click',()=>markShared(savedSession.id));}
     document.getElementById('completeStage')?.addEventListener('click',()=>{el.modal.classList.add('hidden');document.body.style.overflow='';selectedStage=progress.currentStage;updateHome({animateAdvance:advanced});showSessionCompletionPopup(advanced);});
   }
 
   function buildShareText(session) {
     const observation=(session.notes||'').trim(); return `Hoje meditei por ${formatRoundedDuration(session.elapsedSeconds)} e estimo ${session.lucidity}% de concentração.${observation?` ${observation}`:''}`;
-  }
-
-  function markShared(id) {
-    const st=stageState(); const index=st.sessions.findIndex(s=>s.id===id); if(index>=0){st.sessions[index].sharedAt=Date.now();saveProgress();}
   }
 
   function formatLogbookDate(value) {
@@ -674,15 +739,29 @@
 
   function renderLogbook() {
     if(!el.logbookList) return;
-    const entries=normalizeLogbook(progress?.logbook||[]).slice().sort((a,b)=>b.at-a.at);
+    const state=professorSendState();
+    const entries=state.entries.slice().sort((a,b)=>b.at-a.at);
     if(!entries.length) {
       el.logbookList.innerHTML='<div class="logbook-empty">Seu Diário de Bordo começa quando uma prática é registrada.</div>';
       return;
     }
-    el.logbookList.innerHTML=entries.map(entry=>{
+
+    const weeklyShare=state.due
+      ? `<section class="logbook-weekly-share"><strong>Envio semanal ao professor</strong><p>${state.unsent.length===1?'Há 1 registro ainda não enviado.':`Há ${state.unsent.length} registros ainda não enviados.`} O envio reúne todos eles em uma única mensagem.</p><a class="whatsapp" id="logbookShareWhatsapp" target="_blank" rel="noopener">Enviar ao Professor</a></section>`
+      : '';
+
+    el.logbookList.innerHTML=weeklyShare+entries.map(entry=>{
       const stageLabel=entry.stage ? `Etapa ${entry.stage}${entry.unitName?` — ${entry.unitName}`:''}` : entry.unitName;
-      return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p></article>`;
+      const sentStatus=entry.sentAt ? '<div class="logbook-sent-status">✔️ enviado ao professor</div>' : '';
+      return `<article class="logbook-entry"><div class="logbook-entry-head"><time datetime="${new Date(entry.at).toISOString()}">${escapeHtml(formatLogbookDate(entry.at))}</time>${stageLabel?`<span class="logbook-entry-stage">${escapeHtml(stageLabel)}</span>`:''}</div><p class="logbook-entry-text">${escapeHtml(entry.text)}</p>${sentStatus}</article>`;
     }).join('');
+
+    const share=document.getElementById('logbookShareWhatsapp');
+    if(share){
+      const message=buildProfessorWeeklyText(state.unsent);
+      share.href=`https://api.whatsapp.com/send?phone=${encodeURIComponent(appData.settings.whatsappPhone)}&text=${encodeURIComponent(message)}`;
+      share.addEventListener('click',()=>{markProfessorLogbookSent(state.unsent,state.cycleKey).catch(error=>showToast(error.message));});
+    }
   }
 
   function openLogbook() {

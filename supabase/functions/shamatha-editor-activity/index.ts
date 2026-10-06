@@ -99,7 +99,8 @@ function logbookText(durationSeconds: number, concentration: number | null, note
 }
 
 function extractLogbook(data: any) {
-  const byId = new Map<string, { id:string; at:string; stage:number | null; unitName:string; text:string }>();
+  const transitionSentAt = sessionTime(data?.logbookTransitionSentAt);
+  const byId = new Map<string, { id:string; at:string; stage:number | null; unitName:string; text:string; sentAt:string | null }>();
 
   const add = (raw: any, fallbackStage: number | null = null) => {
     const time = sessionTime(raw?.at) || sessionTime(raw?.savedAt) || sessionTime(raw?.endedAt) || sessionTime(raw?.startedAt);
@@ -114,12 +115,15 @@ function extractLogbook(data: any) {
     const stage = Number.isInteger(stageValue) && stageValue > 0 ? stageValue : null;
     const id = String(raw?.id || `${time}:${stage || ''}:${duration}:${concentration ?? ''}`);
     const text = String(raw?.text || logbookText(duration, concentration, notes)).trim().slice(0, 2600);
+    const explicitSentAt = sessionTime(raw?.sentAt) || sessionTime(raw?.sharedAt);
+    const sentAt = explicitSentAt || (transitionSentAt && time <= transitionSentAt ? transitionSentAt : 0);
     byId.set(id, {
       id,
       at:new Date(time).toISOString(),
       stage,
       unitName:String(raw?.unitName || '').trim().slice(0, 160),
-      text
+      text,
+      sentAt:sentAt ? new Date(sentAt).toISOString() : null
     });
   };
 
@@ -385,7 +389,7 @@ Deno.serve(async (req: Request) => {
 
     const emailById = new Map((profiles || []).map(row => [row.id, String(row.email || '').trim().toLowerCase()]));
     const sessionsByUserId: Record<string, Array<{ at:string; durationSeconds:number; concentration:number | null }>> = {};
-    const logbookByUserId: Record<string, Array<{ id:string; at:string; stage:number | null; unitName:string; text:string }>> = {};
+    const logbookByUserId: Record<string, Array<{ id:string; at:string; stage:number | null; unitName:string; text:string; sentAt:string | null }>> = {};
     const lastSessionByEmail: Record<string, string> = {};
     for (const row of rows || []) {
       const sessions = extractSessions(row.data);

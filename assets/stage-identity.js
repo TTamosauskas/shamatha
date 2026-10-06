@@ -22,6 +22,21 @@
     catch (_) { return JSON.parse(JSON.stringify(value)); }
   }
 
+  function logbookTime(value) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    const parsed = Date.parse(String(value || ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function trimLogbook(entries) {
+    return (Array.isArray(entries) ? entries : [])
+      .filter(entry => entry && typeof entry === 'object')
+      .slice()
+      .sort((a,b) => logbookTime(a?.at) - logbookTime(b?.at))
+      .slice(-50);
+  }
+
   function parseBody(options = {}) {
     if (!options.body) return {};
     if (typeof options.body === 'object') return options.body;
@@ -145,6 +160,7 @@
     delete meta.schemaVersion;
     delete meta.currentStageId;
     delete meta.stagesById;
+    meta.logbook = trimLogbook(meta.logbook);
 
     const requested = Math.max(1, Math.min(activeStages.length || 1, Number(runtimeSource.currentStage || 1)));
     return {
