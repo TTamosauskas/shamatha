@@ -11,6 +11,7 @@
   const stagesRoot = document.getElementById('stages');
   let confirmedByEmail = {};
   let sessionsByUserId = {};
+  let logbookByUserId = {};
   let notesByUserId = {};
   let syncing = false;
   let popover = null;
@@ -106,6 +107,19 @@
     }).format(date);
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function logbookDateLabel(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'Data indisponível';
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: CURITIBA_TZ,
+      day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+    }).format(date);
+  }
+
   function sessionLabel(session) {
     const minutes = Math.max(1, Math.round(Number(session?.durationSeconds || 0) / 60));
     const concentration = Number(session?.concentration);
@@ -150,9 +164,13 @@
   }
 
   function openSessions(anchor, userId) {
-    const sessions = sessionsByUserId[userId] || [];
-    if (!sessions.length) return;
-    openPopover(anchor, `<div class="user-popover-title">Últimas sessões</div><div class="session-history-list">${sessions.map(session => `<div>${sessionLabel(session)}</div>`).join('')}</div>`, 'session-history-popover');
+    const entries = logbookByUserId[userId] || [];
+    if (!entries.length) return;
+    const content = entries.map(entry => {
+      const stage = entry?.stage ? `Etapa ${entry.stage}${entry.unitName ? ` — ${entry.unitName}` : ''}` : String(entry?.unitName || '');
+      return `<article class="editor-logbook-entry"><div class="editor-logbook-meta"><time>${escapeHtml(logbookDateLabel(entry?.at))}</time>${stage ? `<span>${escapeHtml(stage)}</span>` : ''}</div><p>${escapeHtml(entry?.text || '')}</p></article>`;
+    }).join('');
+    openPopover(anchor, `<div class="user-popover-title">Diário de Bordo</div><div class="editor-logbook-list">${content}</div>`, 'session-history-popover logbook-popover');
   }
 
   async function saveNote(userId, note, button, status) {
@@ -228,23 +246,24 @@
       emailCell.insertAdjacentElement('afterend', activityCell);
     }
     const sessions = user?.id ? (sessionsByUserId[user.id] || []) : [];
-    const signature = sessions.length ? `${user.id}:${sessions[0].at}:${sessions.length}` : `${user?.id || emailCell.dataset.email}:none`;
+    const logbook = user?.id ? (logbookByUserId[user.id] || []) : [];
+    const signature = sessions.length || logbook.length ? `${user.id}:${sessions[0]?.at || logbook[0]?.at || ''}:${sessions.length}:${logbook.length}` : `${user?.id || emailCell.dataset.email}:none`;
     if (activityCell.dataset.signature === signature) return;
     activityCell.dataset.signature = signature;
     activityCell.textContent = '';
-    if (!sessions.length) {
+    if (!sessions.length && !logbook.length) {
       activityCell.textContent = 'Nenhuma';
       return;
     }
     const label = document.createElement('span');
     label.className = 'last-session-label';
-    label.textContent = sessionLabel(sessions[0]);
+    label.textContent = sessions.length ? sessionLabel(sessions[0]) : logbookDateLabel(logbook[0]?.at);
     const chart = document.createElement('button');
     chart.type = 'button';
     chart.className = 'session-history-trigger';
     chart.textContent = '📈';
-    chart.title = 'Ver últimas sessões';
-    chart.setAttribute('aria-label', `Ver últimas sessões de ${user.email || emailCell.dataset.email}`);
+    chart.title = 'Ver Diário de Bordo';
+    chart.setAttribute('aria-label', `Ver Diário de Bordo de ${user.email || emailCell.dataset.email}`);
     chart.addEventListener('click', event => {
       event.stopPropagation();
       openSessions(chart, user.id);
@@ -299,6 +318,7 @@
       if (error || data?.error) return;
       confirmedByEmail = data?.confirmedByEmail || {};
       sessionsByUserId = data?.sessionsByUserId || {};
+      logbookByUserId = data?.logbookByUserId || {};
       notesByUserId = data?.notesByUserId || {};
       tbody?.querySelectorAll('.user-last-session-cell').forEach(cell => delete cell.dataset.signature);
       syncUserRows();

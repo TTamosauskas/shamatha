@@ -756,3 +756,45 @@
 .logout-mini { border:0; background:transparent; color:#475569; cursor:pointer; font:inherit; font-size:11px; text-decoration:underline; text-underline-offset:3px; }
 .complete-banner { margin:18px 0 0; padding:12px 14px; border-radius:14px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:13px; line-height:1.45; }
 @media (max-width: 640px) { .account-pill { display:none; } .home-header { align-items:flex-start; } .home-actions { max-width:42%; } }
+
+
+/* Diário de Bordo */
+.logbook-fab{
+  position:fixed;
+  left:16px;
+  bottom:calc(max(14px,env(safe-area-inset-bottom)) + 144px);
+  z-index:24;
+  width:50px;
+  height:50px;
+  padding:0;
+  border:1px solid rgba(15,23,42,.15);
+  border-radius:50%;
+  background:rgba(248,250,252,.94);
+  box-shadow:0 10px 28px rgba(15,23,42,.18);
+  backdrop-filter:blur(12px);
+  cursor:pointer;
+  font-size:23px;
+  line-height:1;
+  display:grid;
+  place-items:center;
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.logbook-fab:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(15,23,42,.22)}
+.logbook-fab:focus-visible{outline:2px solid #0f172a;outline-offset:3px}
+.logbook-backdrop{z-index:62}
+.logbook-window{width:min(94vw,620px);max-height:min(86vh,760px)}
+.logbook-scroll{background:#f8fafc}
+.logbook-list{display:grid;gap:12px;padding:18px}
+.logbook-entry{
+  padding:15px 16px;
+  border:1px solid #dbe4ec;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15,23,42,.06);
+}
+.logbook-entry-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.logbook-entry time{font-size:12px;font-weight:800;color:#334155;font-variant-numeric:tabular-nums}
+.logbook-entry-stage{font-size:11px;color:#64748b;text-align:right}
+.logbook-entry-text{margin:0;color:#1e293b;font-size:14px;line-height:1.58;white-space:pre-wrap}
+.logbook-empty{padding:44px 22px;text-align:center;color:#64748b;line-height:1.55}
+@media(min-width:800px){.logbook-fab{left:28px;bottom:28px}}
