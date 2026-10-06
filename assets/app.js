@@ -759,7 +759,7 @@
 
   async function init() {
     appData=await api('/api/app-data'); progress=appData.progress;
-    if(reconcileLogbook()) await saveProgress({immediate:true});
+    reconcileLogbook();
     el.accountEmail.textContent=appData.user.email;
     if(appData.user.role==='editor')el.editorLink.classList.remove('hidden');
     const live=String(appData.settings.liveClassUrl||'').trim();
@@ -768,5 +768,8 @@
     progressWatchTimer=setInterval(()=>{if(progress && el.modal.classList.contains('hidden'))updateHome();},60000);
   }
 
-  init().catch(error=>showToast(error.message));
+  init().catch(error=>{
+    showToast(error.message);
+    window.ShamathaLoading?.finish?.();
+  });
 })();
