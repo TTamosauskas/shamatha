@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260827-1450" />
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./assets/app-loading.css?v=20260916-1" />
-  <link rel="stylesheet" href="./assets/app.css?v=20261006-3" />
+  <link rel="stylesheet" href="./assets/app.css?v=20261008-1" />
   <link rel="stylesheet" href="./assets/app-cleanup.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/practice-flow.css?v=20260827-1450" />
   <link rel="stylesheet" href="./assets/previous-lucidity.css?v=20260907-2" />
@@ -48,7 +48,7 @@
           <div class="account-actions">
             <span class="account-pill" id="accountEmail"></span>
             <a class="account-link hidden" id="editorLink" href="./editor.html">Editar</a>
-            <button class="logout-mini" id="logout" type="button">Sair</button>
+            <div class="account-shortcuts"><button class="logbook-fab" id="logbookButton" type="button" aria-label="Abrir Diário de Bordo" title="Diário de Bordo">📝</button><button class="logout-mini" id="logout" type="button">Sair</button></div>
           </div>
         </div>
       </div>
@@ -80,12 +80,10 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
 
-  <button class="logbook-fab" id="logbookButton" type="button" aria-label="Abrir Diário de Bordo" title="Diário de Bordo">📝</button>
-
   <div class="modal-backdrop hidden logbook-backdrop" id="logbookModal" role="dialog" aria-modal="true" aria-labelledby="logbookTitle">
     <section class="unit-window logbook-window">
       <header class="unit-toolbar unit-toolbar-minimal">
-        <div class="unit-toolbar-title"><small>SUAS PRÁTICAS</small><strong id="logbookTitle">Diário de Bordo</strong></div>
+        <div class="unit-toolbar-title"><small>DIÁRIO DE BORDO</small><strong id="logbookTitle">Diário de Bordo</strong></div>
         <button class="icon-btn" id="closeLogbook" aria-label="Fechar Diário de Bordo">×</button>
       </header>
       <div class="unit-scroll logbook-scroll">
