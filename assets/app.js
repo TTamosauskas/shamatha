@@ -251,8 +251,8 @@
     const rows=ordered.map(entry=>{
       const date=`*${formatLogbookDate(entry.at)}*`;
       const match=String(entry.text||'').match(/^(\[Etapa\s+\d+(?:\.\d+)?\])\s*(.*)$/i);
-      if(match) return `${date} ${match[1]} - ${match[2]}`;
-      return `${date} - ${entry.text}`;
+      if(match) return `${date} ${match[1]}\n${match[2]}`;
+      return `${date}\n${entry.text}`;
     });
     const averageMinutes=ordered.length ? Math.round(ordered.reduce((sum,entry)=>sum+Number(entry.durationSeconds||0),0)/ordered.length/60) : 0;
     const withConcentration=ordered.filter(entry=>entry.concentration!=null);
