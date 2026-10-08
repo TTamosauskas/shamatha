@@ -254,7 +254,10 @@
       if(match) return `${date} ${match[1]} - ${match[2]}`;
       return `${date} - ${entry.text}`;
     });
-    return `Diário de Bordo — registros ainda não enviados\n\n${rows.join('\n\n')}`;
+    const averageMinutes=ordered.length ? Math.round(ordered.reduce((sum,entry)=>sum+Number(entry.durationSeconds||0),0)/ordered.length/60) : 0;
+    const withConcentration=ordered.filter(entry=>entry.concentration!=null);
+    const averageConcentration=withConcentration.length ? Math.round(withConcentration.reduce((sum,entry)=>sum+Number(entry.concentration),0)/withConcentration.length) : 0;
+    return `Diário de Bordo\nMédia: ${averageMinutes} minutos, ${averageConcentration}% concentração\n\n${rows.join('\n\n')}`;
   }
 
   async function markProfessorLogbookSent(entries, cycleKey) {
@@ -743,7 +746,9 @@
 
     if(refreshed.count>=cfg.sessionsRequired && !st.completedAt) completeStage(savedStage);
 
-    document.getElementById('saveSession').disabled=true;
+    const saveButton=document.getElementById('saveSession');
+    saveButton.disabled=true;
+    saveButton.textContent='⏳ aguarde';
     await saveProgress({immediate:true});
     updateHome({animateAdvance:Boolean(saved.countedForProgress) || savedStage!==progress.currentStage});
 
@@ -768,17 +773,12 @@
     const count=completedCount(stage);
     const required=Math.max(1,Number(cfg.sessionsRequired||1));
     const pct=Math.max(0,Math.min(100,Math.round((count/required)*100)));
-    const remaining=Math.max(0,required-count);
-    const stageFinished=Boolean(st?.completedAt);
-    const progressStatus=stageFinished
-      ? `Meta cumprida nos últimos ${cfg.deadlineDays} dias. Etapa concluída.`
-      : `${remaining===1?'Falta':'Faltam'} ${remaining} ${remaining===1?'sessão válida':'sessões válidas'} nos últimos ${cfg.deadlineDays} dias.`;
     const marks=Array.from({length:required+1},(_,index)=>{
       const left=required===0?0:(index/required)*100;
       return `<span class="progress-mark" style="left:${left}%"></span>`;
     }).join('');
 
-    return `<section class="progress-card logbook-progress-card"><div class="logbook-progress-heading"><div><small>Etapa ${stage}</small><h3>Seu progresso</h3></div><span>${escapeHtml(cfg.unitName||'')}</span></div><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" style="width:${pct}%"></div>${marks}<span class="progress-elephant" style="left:${pct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${required}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias.</span><span>${escapeHtml(progressStatus)}</span></div></section>`;
+    return `<section class="progress-card logbook-progress-card"><div class="logbook-progress-heading"><div><h3>Seu progresso</h3></div></div><div class="progress-line"><div class="progress-track"></div><div class="progress-fill" style="width:${pct}%"></div>${marks}<span class="progress-elephant" style="left:${pct}%">🐘</span></div><div class="progress-facts"><span><strong>${count} de ${required}</strong> sessões válidas nos últimos ${cfg.deadlineDays} dias</span></div></section>`;
   }
 
   function renderLogbook() {
@@ -804,7 +804,7 @@
     if(share){
       const message=buildProfessorWeeklyText(state.unsent);
       share.href=`https://api.whatsapp.com/send?phone=${encodeURIComponent(appData.settings.whatsappPhone)}&text=${encodeURIComponent(message)}`;
-      share.addEventListener('click',()=>{markProfessorLogbookSent(state.unsent,state.cycleKey).catch(error=>showToast(error.message));});
+      share.addEventListener('click',()=>{share.textContent='⏳ aguarde';share.setAttribute('aria-disabled','true');markProfessorLogbookSent(state.unsent,state.cycleKey).catch(error=>{share.textContent='Enviar ao Professor';share.removeAttribute('aria-disabled');showToast(error.message);});});
     }
   }
 
