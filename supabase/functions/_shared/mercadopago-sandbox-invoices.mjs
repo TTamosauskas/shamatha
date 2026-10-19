@@ -6,7 +6,7 @@
 const exact180=(x)=>typeof x==="number"&&Number.isFinite(x)&&Math.round(x*100)===18000;
 const numericId=(x)=>{const value=String(x??"");return /^\d{1,30}$/.test(value)?value:null};
 const safeStatus=(x)=>typeof x==="string"&&/^[a-z_]{1,48}$/i.test(x)?x:"unknown";
-const toDate=(x)=>typeof x==="string"&&Number.isFinite(Date.parse(x))
+const toDate=(x)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(x)&&Number.isFinite(Date.parse(x))
   ?new Date(x).toISOString():null;
 export function verifySandboxInvoices({subscription,invoiceSearch,paymentsById={},attempt,expectedSellerId="3778352536",checkedAt}={}) {
   if (!attempt||!attempt.id||!attempt.editor_id||
