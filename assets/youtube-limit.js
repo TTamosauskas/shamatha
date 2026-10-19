@@ -38,7 +38,7 @@
         events: {
           onStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING) {
-              if (resetting) return;
+              if (resetting) { event.target.pauseVideo(); return; }
               stopChecking();
               timer = setInterval(() => {
                 if (!iframe.isConnected) {
