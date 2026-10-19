@@ -53,7 +53,16 @@
           unitName:form.querySelector('[name="childUnitName"]').value,
           releaseDay:Number(form.querySelector('[name="childReleaseDay"]').value),
           objective:form.querySelector('[name="childObjective"]').value,
-          videoUrl:form.querySelector('[name="childVideoUrl"]').value
+          videoUrl:form.querySelector('[name="childVideoUrl"]').value,
+          videoLimitSeconds:(() => {
+            const raw = String(form.querySelector('[name="childVideoLimit"]').value || '').trim();
+            if (!raw) return null;
+            if (!/^[0-9]+:[0-5][0-9]$/.test(raw)) throw new Error('Tempo inválido: use 0:20, por exemplo.');
+            const [minutes, seconds] = raw.split(':').map(Number);
+            const total = minutes * 60 + seconds;
+            if (total < 1 || total > 86400) throw new Error('Tempo limite deve ficar entre 0:01 e 1440:00.');
+            return total;
+          })()
         })
       });
       await refreshChildren();
@@ -122,7 +131,10 @@
           <div class="field"><label>Dia</label><input name="childReleaseDay" type="number" min="1" max="${child.parentDeadlineDays}" value="${child.releaseDay}" required></div>
         </div>
         <div class="field"><label>Objetivo / apresentação</label><textarea name="childObjective" rows="4">${esc(child.objective || '')}</textarea></div>
-        <div class="field"><label>URL do vídeo</label><input name="childVideoUrl" type="url" value="${esc(child.videoUrl || '')}" placeholder="https://..."></div>
+        <div class="video-limit-grid">
+          <div class="field"><label>URL do vídeo</label><input name="childVideoUrl" type="url" value="${esc(child.videoUrl || '')}" placeholder="https://www.youtube.com/watch?v=..."></div>
+          <div class="field"><label>Tempo limite (opcional)</label><input name="childVideoLimit" type="text" inputmode="numeric" maxlength="8" pattern="[0-9]+:[0-5][0-9]" title="Use minutos:segundos, por exemplo 0:20" value="${child.videoLimitSeconds ? Math.floor(child.videoLimitSeconds / 60) + ':' + String(child.videoLimitSeconds % 60).padStart(2,'0') : ''}" placeholder="0:20"></div>
+        </div>
         <div class="field"><label>Áudio próprio (opcional)</label><input name="childAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav,audio/webm,.mp3,.m4a,.aac,.ogg,.wav,.webm"></div>
         <div class="child-audio-row"><span class="child-audio-note">${audioNote}</span><button class="btn secondary small upload-child-audio" type="button">Enviar áudio</button>${ownAudio ? '<button class="btn secondary small remove-child-audio" type="button">Usar áudio da mãe</button>' : ''}</div>
         <div class="child-editor-actions"><button class="btn primary small save-child-stage" type="submit">Salvar aula</button><button class="btn danger small archive-child-stage" type="button">Remover</button></div>
