@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Minha assinatura — Shamatha</title>
+<link rel="stylesheet" href="./assets/site.css?v=20260825-1135">
+<style>
+.status-shell{width:min(740px,calc(100% - 32px));margin:0 auto;padding:40px 0 60px}
+.status-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.status-header a{font-weight:700}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:#64748b;font-weight:800;margin:0 0 12px}
+.status-indicator{display:inline-block;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;border-radius:999px;padding:8px 14px;font-weight:750}
+.status-details{margin-top:20px;padding-top:20px;border-top:1px solid #e2e8f0}
+.status-details dl{margin:0;display:grid;gap:12px}
+.status-details dl>div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.status-details dt{color:#64748b}
+.status-details dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+.notice{border-radius:14px;background:#eef6ff;border:1px solid #d0e7fb;padding:14px;line-height:1.55;margin-top:20px}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:22px}
+.actions button{border:1px solid #93c5fd;border-radius:10px;background:#e0f2fe;color:#075985;padding:11px 18px;font-weight:750;cursor:pointer}
+.actions button:disabled{cursor:not-allowed;background:#f1f5f9;color:#64748b;border-color:#cbd5e1}
+#statusMessage{color:#475569;margin:16px 0;min-height:24px}
+#subscriptionPanel[hidden],#signInHint[hidden]{display:none}
+</style>
+</head>
+<body>
+<main class="status-shell">
+  <div class="status-header">
+    <div class="brand"><small>CENTRO PINEAL</small><strong>Shamatha</strong></div>
+    <a href="./index.html">Voltar ao acesso</a>
+  </div>
+  <section class="card" aria-labelledby="pageTitle">
+    <p class="eyebrow">Área do aluno · prévia de homologação</p>
+    <h1 id="pageTitle">Minha assinatura</h1>
+    <p class="lead">Consulte o estado da sua assinatura e as informações registradas para sua conta.</p>
+
+    <p id="statusMessage" role="status" aria-live="polite">Verificando sua sessão…</p>
+    <p id="signInHint" hidden><a href="./index.html">Entre na sua conta</a> para consultar sua assinatura.</p>
+
+    <div id="subscriptionPanel" hidden>
+      <p><span id="billingStatus" class="status-indicator">Pendente</span></p>
+      <p id="billingDescription"></p>
+      <div class="status-details">
+        <dl>
+          <div><dt>Conta</dt><dd id="accountEmail">—</dd></div>
+          <div><dt>Estado administrativo</dt><dd id="adminStatus">—</dd></div>
+          <div><dt>Mensalidade prevista</dt><dd>R$ 180,00</dd></div>
+          <div><dt>Último período pago registrado até</dt><dd id="paidThrough">Não informado</dd></div>
+        </dl>
+      </div>
+      <div class="notice">
+        <strong>Cobrança real ainda desativada.</strong>
+        Esta página é apenas uma prévia. Ainda não é possível pagar, regularizar ou ativar uma assinatura pelo Shamatha.
+        A situação apresentada é informativa e não modifica o acesso ao conteúdo.
+      </div>
+      <div class="actions">
+        <button id="refreshStatus" type="button">Atualizar situação</button>
+        <button type="button" disabled title="Pagamento indisponível até aprovação da ativação real">Pagar / regularizar — indisponível</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./assets/config.js?v=20260827-1450"></script>
+<script src="./assets/supabase-backend.js?v=20261019-2"></script>
+<script type="module">
+import { formatSubscriptionState } from './assets/subscription-status-view.mjs';
+
+const el=id=>document.getElementById(id);
+let loading=false;
+function say(text){el('statusMessage').textContent=text;}
+function administrativeLabel(value){
+  return value==='approved'?'Aprovado':value==='suspended'?'Suspenso':'Pendente';
+}
+function humanDate(value){
+  if(!value)return 'Não informado';
+  const stamp=Date.parse(value);
+  if(!Number.isFinite(stamp))return 'Não informado';
+  return new Intl.DateTimeFormat('pt-BR',{dateStyle:'long',timeStyle:'short',timeZone:'America/Sao_Paulo'}).format(new Date(stamp));
+}
+async function refresh(){
+  if(loading)return;
+  loading=true;
+  el('refreshStatus').disabled=true;
+  el('subscriptionPanel').hidden=true;
+  el('signInHint').hidden=true;
+  say('Consultando sua conta…');
+  try{
+    const backend=window.ShamathaBackend;
+    if(!backend?.isConfigured?.())throw new Error('Conexão com o Supabase indisponível.');
+    const sb=backend.getClient();
+    const {data:auth,error:authError}=await sb.auth.getUser();
+    if(authError||!auth?.user){
+      el('signInHint').hidden=false;
+      say('Não há sessão autenticada nesta página.');
+      return;
+    }
+    const id=auth.user.id;
+    const [profile,exemption,subscriptions]=await Promise.all([
+      sb.from('profiles').select('id,email,role,access_status').eq('id',id).maybeSingle(),
+      sb.from('billing_exemptions').select('user_id').eq('user_id',id).maybeSingle(),
+      sb.from('billing_subscriptions')
+        .select('environment,access_status,paid_through,created_at')
+        .eq('user_id',id).order('created_at',{ascending:false}).limit(20)
+    ]);
+    if(profile.error||exemption.error||subscriptions.error) {
+      throw new Error('Não foi possível consultar o cadastro e a assinatura.');
+    }
+    if(!profile.data){
+      say('Cadastro ainda não disponível. Confira sua confirmação de e-mail.');
+      return;
+    }
+    const view=formatSubscriptionState({
+      exempt:!!exemption.data,
+      subscriptions:subscriptions.data||[],
+      now:new Date().toISOString()
+    });
+    el('accountEmail').textContent=profile.data.email||'—';
+    el('adminStatus').textContent=administrativeLabel(profile.data.access_status);
+    el('billingStatus').textContent=view.label;
+    el('billingDescription').textContent=view.message;
+    el('paidThrough').textContent=humanDate(view.paidThrough);
+    el('subscriptionPanel').hidden=false;
+    say('Consulta de leitura concluída. Nenhuma cobrança ou alteração de acesso foi realizada.');
+  }catch(e){
+    say(e?.message||'Falha ao consultar a assinatura.');
+  }finally{
+    loading=false;
+    el('refreshStatus').disabled=false;
+  }
+}
+el('refreshStatus').addEventListener('click',refresh);
+refresh();
+</script>
+</body>
+</html>
