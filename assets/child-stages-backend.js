@@ -25,7 +25,7 @@
   }
 
   function stageRowsQuery() {
-    return sb.from('stages').select('number,stage_id,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,deadline_days,min_session_seconds,video_url,audio_url,audio_path,audio_name,updated_at');
+    return sb.from('stages').select('number,stage_id,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,deadline_days,min_session_seconds,video_url,video_limit_seconds,audio_url,audio_path,audio_name,updated_at');
   }
 
   async function childRows() {
@@ -145,6 +145,7 @@
         unitName: row.unit_name || 'Nova aula',
         objective: row.objective || '',
         videoUrl: row.video_url || '',
+        videoLimitSeconds: row.video_limit_seconds ?? null,
         ownAudioPath: row.audio_path || '',
         ownAudioName: row.audio_name || '',
         ownAudioUrl,
@@ -204,6 +205,10 @@
       p_video_url:String(body.videoUrl || '')
     });
     if (result.error) fail(result.error.message || 'Falha ao salvar etapa filha.');
+    const limit = body.videoLimitSeconds == null ? null : Number(body.videoLimitSeconds);
+    if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 86400)) fail('Tempo limite inválido.');
+    const savedLimit = await sb.from('stages').update({ video_limit_seconds: limit }).eq('stage_id',stageId).not('parent_stage_id','is',null).select('stage_id').single();
+    if (savedLimit.error) fail(savedLimit.error.message || 'Falha ao salvar tempo limite da etapa filha.');
     return { childStage:await refreshChild(stageId) };
   }
 
