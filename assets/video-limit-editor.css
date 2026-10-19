@@ -1,0 +1,7 @@
+/* Tempo limite opcional do vídeo, ao lado da URL no editor. */
+.video-limit-grid { display:grid; grid-template-columns:minmax(0, 1fr) 176px; gap:12px; align-items:start; }
+.video-limit-grid .field { min-width:0; }
+@media (max-width:520px) {
+  .video-limit-grid { grid-template-columns:minmax(0, 1fr) 128px; gap:8px; }
+  .video-limit-grid label { font-size:12px; }
+}
