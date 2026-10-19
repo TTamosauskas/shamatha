@@ -3,7 +3,7 @@
  * No network calls, no credentials. Provider objects MUST be fetched by a server.
  * An approved invoice does not establish a paid-through entitlement.
  */
-const exact180=(x)=>typeof x==="number"&&Number.isFinite(x)&&Math.round(x*100)===18000;
+const exact180=(x)=>typeof x==="number"&&Number.isFinite(x)&&x===180;
 const numericId=(x)=>{const value=String(x??"");return /^\d{1,30}$/.test(value)?value:null};
 const safeStatus=(x)=>typeof x==="string"&&/^[a-z_]{1,48}$/i.test(x)?x:"unknown";
 const toDate=(x)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(x)&&Number.isFinite(Date.parse(x))
@@ -34,7 +34,7 @@ export function verifySandboxInvoices({subscription,invoiceSearch,paymentsById={
   }
   const checked=toDate(checkedAt);
   if(!checked)throw new Error("INVALID_CHECK_TIME");
-  const rows=[],observed=new Set();
+  const rows=[],observed=new Set(),paymentIds=new Set();
   for(const invoice of invoiceSearch.results){
     const invoiceId=numericId(invoice?.id);
     if(String(invoice?.preapproval_id??"")!==subscriptionId||
@@ -45,6 +45,8 @@ export function verifySandboxInvoices({subscription,invoiceSearch,paymentsById={
     }
     observed.add(invoiceId);
     const paymentId=numericId(invoice?.payment?.id);
+    if(paymentId&&paymentIds.has(paymentId))throw new Error("PAYMENT_REUSED_ACROSS_INVOICES");
+    if(paymentId)paymentIds.add(paymentId);
     const payment=paymentId?paymentsById[paymentId]:null;
     if(paymentId&&!payment)throw new Error("PAYMENT_NOT_FETCHED");
     let status=null,approved=false,approvedAt=null;
@@ -55,7 +57,7 @@ export function verifySandboxInvoices({subscription,invoiceSearch,paymentsById={
         throw new Error("PAYMENT_MISMATCH");
       }
       status=safeStatus(payment.status);
-      approved=status==="approved"&&invoice?.payment?.status==="approved";
+      approved=status==="approved"&&invoice?.payment?.status==="approved"&&invoice.status==="processed";
       approvedAt=approved?toDate(payment.date_approved):null;
     }
     rows.push({
