@@ -8,8 +8,18 @@
   <link rel="manifest" href="./manifest.webmanifest?v=20260825-1135">
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./assets/site.css?v=20260825-1135">
+  <link rel="stylesheet" href="./assets/app-loading.css?v=20260916-1">
 </head>
-<body>
+<body class="app-loading-active">
+  <div class="app-loading-screen" id="authLoadingScreen" role="status" aria-live="polite" aria-label="Verificando sua sessão">
+    <div class="app-loading-panel">
+      <p class="app-loading-kicker">Centro Pineal</p>
+      <div class="app-loading-orbit" aria-hidden="true">
+        <span class="app-loading-elephant">🐘</span>
+      </div>
+      <p class="app-loading-copy">Verificando sua sessão…</p>
+    </div>
+  </div>
   <main class="auth-wrap">
     <section class="card auth-card">
       <div class="brand" style="margin-bottom:20px"><small>APRENDENDO À MEDITAR</small><strong>Centro Pineal</strong></div>
@@ -51,6 +61,6 @@
 <script src="./assets/config.js?v=20260825-1135"></script>
 <script src="./assets/supabase-backend.js?v=20260825-1135"></script>
 <script src="./assets/shamatha-extensions.js?v=20260825-1135"></script>
-<script src="./assets/login.js?v=20260825-1135"></script>
+<script src="./assets/login.js?v=20261019-1"></script>
 </body>
 </html>

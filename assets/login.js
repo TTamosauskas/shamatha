@@ -6,6 +6,16 @@ const invitePasswordForm = $('invitePasswordForm');
 let passwordFlow = 'invite';
 let recoveryActive = false;
 
+function hideAuthLoading() {
+  const screen = $('authLoadingScreen');
+  if (!screen) return;
+  screen.classList.add('is-leaving');
+  document.body.classList.remove('app-loading-active');
+  screen.addEventListener('transitionend', () => { screen.hidden = true; }, { once:true });
+  setTimeout(() => { screen.hidden = true; }, 400);
+}
+
+
 function setStatus(message, kind = '') {
   status.textContent = message;
   status.className = `status ${kind}`.trim();
@@ -155,13 +165,15 @@ $('logoutPending').addEventListener('click', async () => {
 });
 
 (async () => {
-  if (!window.ShamathaBackend?.isConfigured()) {
-    setStatus('Configuração pendente: preencha supabaseUrl e supabasePublishableKey em assets/config.js.', 'bad');
-    loginForm.querySelector('button[type="submit"]').disabled = true;
-    registerForm.querySelector('button[type="submit"]').disabled = true;
-    return;
-  }
+  let navigating = false;
   try {
+    if (!window.ShamathaBackend?.isConfigured()) {
+      setStatus('Configuração pendente: preencha supabaseUrl e supabasePublishableKey em assets/config.js.', 'bad');
+      loginForm.querySelector('button[type="submit"]').disabled = true;
+      registerForm.querySelector('button[type="submit"]').disabled = true;
+      return;
+    }
+
     const sb = window.ShamathaBackend.getClient();
     sb.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
@@ -169,8 +181,20 @@ $('logoutPending').addEventListener('click', async () => {
       }
     });
     if (await detectInvitation()) return;
+
     const data = await api('/api/me');
-    if (data.user) routeUser(data.user);
-    if (new URLSearchParams(location.search).get('pending') === '1') setStatus('Sua conta está Pendente e aguarda aprovação do editor.');
-  } catch (_) {}
+    if (data.user) {
+      const user = data.user;
+      navigating = user.role === 'editor' || user.accessStatus === 'approved' || Boolean(user.accessGranted);
+      routeUser(user);
+      return;
+    }
+    if (new URLSearchParams(location.search).get('pending') === '1') {
+      setStatus('Sua conta está Pendente e aguarda aprovação do editor.');
+    }
+  } catch (error) {
+    setStatus('Não foi possível verificar sua sessão. Verifique sua conexão e tente entrar novamente.', 'bad');
+  } finally {
+    if (!navigating) hideAuthLoading();
+  }
 })();
