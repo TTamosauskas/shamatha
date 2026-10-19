@@ -35,7 +35,7 @@ button:disabled {opacity:.6;cursor:wait}
 <section id="verified" class="hidden">
 <p id="sellerInfo"></p>
 <p id="flagInfo"></p>
-<div id="subscriptionSummary" class="notice hidden" role="status"></div>
+<div id="subscriptionSummary" class="notice hidden" role="status" style="white-space:pre-line"></div>
 <button id="recheck" type="button">Verificar novamente</button>
 <form id="checkout" class="hidden">
 <label>ID da conta VENDEDOR DE TESTE<input id="sellerId" type="text" inputmode="numeric" pattern="[0-9]+" required></label>
@@ -93,14 +93,26 @@ async function check(){
    const paymentInfo=state.approvedPaymentVerified
      ? "Pagamento aprovado e confirmado pela API do Mercado Pago (homologação)."
      : "Nenhum pagamento aprovado foi confirmado nesta consulta.";
-   box.textContent="Assinatura de teste: "+name+". "+
-     "ID: "+(state.subscriptionId||"indisponível")+". "+
-     invoiceInfo+" "+paymentInfo+
-     " Nenhuma mudança de acesso foi realizada.";
+   box.textContent="RESULTADO DA ASSINATURA DE TESTE\n"+
+     "Estado no Mercado Pago: "+name+"\n"+
+     "ID: "+(state.subscriptionId||"indisponível")+"\n"+
+     "Faturas: "+invoiceInfo+"\n"+
+     "Pagamento: "+paymentInfo+"\n"+
+     "Acesso dos alunos: não alterado.";
  }
  byId("checkout").classList.toggle("hidden",!data.enabled);
  byId("verified").classList.remove("hidden");
- message("Consulta concluída. Nenhuma assinatura foi criada.");
+ if(state?.found) {
+   if(state.approvedPaymentVerified){
+     message("Pagamento confirmado pela API do Mercado Pago. Esta foi apenas uma consulta: nenhuma nova assinatura ou alteração de acesso foi efetuada.");
+   } else if(!state.invoiceQueryAvailable){
+     message("Assinatura localizada, mas a consulta de faturas está indisponível. Não é possível confirmar o pagamento por enquanto. Nenhuma nova assinatura foi criada.");
+   } else {
+     message("Assinatura localizada: "+(state.remoteStatus||"estado não identificado")+". O pagamento aprovado ainda não foi confirmado nesta consulta. Confira os detalhes acima. Nenhuma nova assinatura foi criada.");
+   }
+ } else {
+   message("Consulta concluída. Não há tentativa de assinatura registrada nesta conta de editor. Nenhuma nova assinatura foi criada.");
+ }
 }
 byId("login").addEventListener("submit",async function(ev){
  ev.preventDefault();
