@@ -79,6 +79,24 @@ Recebedor dedicado, sem JWT de cliente (`verify_jwt=false`), mas **nunca** sem a
 - Desabilitar billing por feature flag nao altera automaticamente contratos existentes no Mercado Pago.
 - Conferir `productionBillingEnabled=false` ate aprovacao explicita de lancamento.
 
+## Implantacao de conciliacao ficticia — 19/10/2026
+
+- Migration aplicada: `20261019204008_billing_sandbox_invoice_observations`, com tabela privada `public.billing_sandbox_invoice_observations` (RLS, nenhuma policy de cliente).
+- Deploy ativo: `shamatha-mp-sandbox-reconcile`, `verify_jwt=true`. POST exige JWT do editor principal aprovado, body `{"mode":"sandbox-reconcile"}`; utiliza somente a credencial da conta **vendedora ficticia ID 3778352536**.
+- Verifica a assinatura `GET /preapproval/{id}`, referencia original do checkout, frequencia mensal, valor BRL 180; consulta `GET /authorized_payments/search` e `GET /v1/payments/{id}` para comparar IDs, vendedor, moeda, valor e status. So depois grava faturas verificadas de modo idempotente.
+- Nao escreve em tabelas de producao, nao cria checkout, nao altera acesso, e nao preenche `paid_through` sem prova de um periodo de cobertura confiavel.
+- Frontend de acionamento preparado em **PR #53**, isolado da PR #49: adiciona botao de conciliacao em `billing-sandbox.html`. **Nao publicado** sem autorizacao.
+- O editor principal deve publicar especificamente PR #53, clicar "Conciliar faturas de teste no Supabase" e enviar o resultado. Testes online autenticados da nova funcao estao **pendentes**; a verificacao da implantacao so garante status ACTIVE.
+- A flag `SHAMATHA_MP_SANDBOX_CREATE_ENABLED` continua destinada apenas a novas criacoes e deve ficar `false` (informado pelo proprietario).
+
+## Preparacao do webhook — DESABILITADA
+
+- Receptor preparado na branch do PR #49 em `supabase/functions/shamatha-mp-sandbox-webhook/index.ts`. **NAO FOI IMPLANTADO NEM CONECTADO A NOTIFICACOES MERCADO PAGO.**
+- Exige flag `SHAMATHA_MP_SANDBOX_WEBHOOK_ENABLED=true`, segredo da assinatura `SHAMATHA_MP_SANDBOX_WEBHOOK_SECRET` e assinatura HMAC-SHA256 validada via `x-signature`, `x-request-id`, `data.id`, timestamp com janela curta, limite de payload e comparacao com vendedor de teste. Registra apenas o evento sanitizado em `billing_webhook_events` para conciliacao posterior. Nunca libera acesso.
+- Para usar, verificar primeiro no Mercado Pago **como as notificacoes da API /preapproval especifica sao configuradas**: a documentacao de Assinaturas ressalva que "via Suas integracoes" nao serve para assinaturas, e a API /preapproval nao lista `notification_url` como parametro documentado. Nao mandar campo nao suportado nem expor webhook ate esse ponto ser validado.
+- Testar assinatura legitima, assinatura falsa, replay, atraso, notificacao duplicada, campo ID adulterado e conciliacao posterior. Se o provedor nao aceitar webhook para este fluxo, manter conciliacao manual/agendada como fonte de verdade.
+- Nao considerar esse esboco de webhook aprovado para producao ate testes completos.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
