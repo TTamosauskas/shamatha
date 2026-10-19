@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {checkStudentCheckoutGate} from '../supabase/functions/_shared/student-checkout-gates.mjs';
 
 const input=(overrides={})=>({
-  productionEnabled:true, checkoutEnabled:true, sellerConfigured:true,
+  productionEnabled:true, launchApproved:true, checkoutEnabled:true, sellerConfigured:true,
   role:'student', isVerifiedEmail:true, administrativeStatus:'pending',
   isExempt:false, hasExistingSubscription:false,...overrides
 });
@@ -19,3 +19,6 @@ test('existing provider subscription must be reconciled, not duplicated',()=>ass
 test('pending administrative approval can start checkout only when rollout is enabled',()=>assert.deepEqual(checkStudentCheckoutGate(input()),{allowed:true,reason:'ELIGIBLE_FOR_CHECKOUT_ONLY'}));
 test('all guards are boolean strict, not string based',()=>{for(const value of ['true',1,null])assert.equal(checkStudentCheckoutGate(input({productionEnabled:value})).allowed,false)});
 test('an approved student still needs both flags',()=>assert.equal(checkStudentCheckoutGate(input({administrativeStatus:'approved',checkoutEnabled:false})).allowed,false));
+
+test('final launch approval is an independent kill switch',()=>assert.equal(checkStudentCheckoutGate(input({launchApproved:false})).reason,'LAUNCH_NOT_APPROVED'));
+test('string launch approval does not enable billing',()=>assert.equal(checkStudentCheckoutGate(input({launchApproved:'true'})).allowed,false));
