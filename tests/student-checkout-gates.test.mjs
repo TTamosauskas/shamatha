@@ -22,3 +22,5 @@ test('an approved student still needs both flags',()=>assert.equal(checkStudentC
 
 test('final launch approval is an independent kill switch',()=>assert.equal(checkStudentCheckoutGate(input({launchApproved:false})).reason,'LAUNCH_NOT_APPROVED'));
 test('string launch approval does not enable billing',()=>assert.equal(checkStudentCheckoutGate(input({launchApproved:'true'})).allowed,false));
+
+test('unknown administrative status fails closed',()=>assert.equal(checkStudentCheckoutGate(input({administrativeStatus:'arbitrary'})).reason,'ACCOUNT_STATUS_UNRECOGNIZED'));
