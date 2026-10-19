@@ -97,6 +97,18 @@ Recebedor dedicado, sem JWT de cliente (`verify_jwt=false`), mas **nunca** sem a
 - Testar assinatura legitima, assinatura falsa, replay, atraso, notificacao duplicada, campo ID adulterado e conciliacao posterior. Se o provedor nao aceitar webhook para este fluxo, manter conciliacao manual/agendada como fonte de verdade.
 - Nao considerar esse esboco de webhook aprovado para producao ate testes completos.
 
+## Correcao da conciliacao apos teste do editor — 19/10/2026
+
+O primeiro clique no botao de PR #53 retornou HTTP 502 ao navegador. Os logs da Edge Function, em `function_logs`, demonstraram: `sandbox reconciliation error Mercado Pago indisponivel (HTTP 400)`. A tentativa de pagamento anteriormente verificada continua valida; o erro e de uma chamada de leitura desta nova funcao, e nao de uma cobranca recusada. A tabela privada de observacoes continuou sem registros.
+
+Correcao preparada e **implantada** na funcao `shamatha-mp-sandbox-reconcile` v2:
+- Busca de faturas alinhada ao GET de homologacao comprovadamente funcional: `/authorized_payments/search?preapproval_id=...&limit=10`, removendo `offset=0` e alterando o limite de 20 para 10.
+- Paginação limitada a 10 neste prototipo; mais faturas => erro explicito e sem gravacao incompleta.
+- Logs diagnosticam so o estagio da consulta (`seller`, `subscription`, `invoices`, `payment`) e o codigo HTTP sem qualquer segredo. Uma nova falha pode ser atribuida ao estagio exato.
+- Nao ha novas assinaturas, notificacoes, liberacao de aluno ou escrita no schema de producao.
+
+**Validacao pendente:** o editor principal precisa clicar novamente em `Conciliar faturas de teste no Supabase`. O deploy v2 estar ACTIVE nao prova conciliacao concluida. A mudanca dos parametros e uma hipotese sustentada pelo fluxo GET anterior, ainda sem teste autenticado da v2.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
