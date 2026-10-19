@@ -1,0 +1,97 @@
+# Shamatha — integracao de assinaturas recorrentes: etapas apos homologacao
+
+**Data:** 19/10/2026
+**Status:** plano tecnico de implementacao; NENHUMA fase de cobranca real autorizada.
+**Branch:** `feat/mercadopago-sandbox-foundation` / PR #49, mantido em rascunho.
+
+## Resultado verificado da homologacao
+
+O editor principal concluiu o checkout ficticio com saldo em conta do COMPRADOR de teste. O painel autenticado informou:
+- Vendedor ficticio conferido: ID `3778352536`.
+- Assinatura ficticia: `c5b3cfd34ca740cb8d1b7687c5ad13b2`.
+- Status: `authorized`.
+- Uma fatura identificada.
+- Pagamento de R$ 180,00 com status `approved`, confirmado pela leitura da API do Mercado Pago.
+- Nenhuma liberacao de conteudo ou alteracao do cadastro.
+
+Uma linha existe em `public.billing_sandbox_attempts` com estado `created`. Isso registra a criacao do checkout, NAO atualiza automaticamente o estado de pagamento em `public.billing_payments`; a confirmacao ocorreu pela consulta sob demanda da API. Nao inferir resultados de futuras renovacoes desse unico teste.
+
+A pessoa proprietaria informou ter desabilitado novamente `SHAMATHA_MP_SANDBOX_CREATE_ENABLED`. **Esta flag evita novas criacoes de checkout, mas nao cancela a assinatura ficticia ja autorizada.** Cancelar pelo Mercado Pago apos concluir os testes de renovacao/cancelamento para evitar recorrencia indesejada na conta ficticia. Nao cancelar de forma automatica sem decisao explicita.
+
+## Contrato funcional acordado
+
+- R$ 180,00 BRL a cada mes.
+- Clientes existentes na data de ativacao real devem ficar **isentos**, sem expiracao automatica, ate decisao posterior.
+- Cliente novo pode cadastrar-se, mas so pode acessar conteudo depois de pagamento efetivamente aprovado e vinculacao segura a sua identidade.
+- Sem tolerancia alem do instante `paid_through`. Se renovacao nao for confirmada, acesso cessa no vencimento, sem apagar historico e progresso.
+- Estados visiveis no editor: **Isento**, **Ativa**, **Pendente**, **Atrasada**, **Pausada**, **Cancelada** (alem do controle independente de aprovacao administrativa, caso exista).
+- Nao usar exclusivamente `preapproval.status = authorized`, URL de retorno, confirmacao no navegador ou webhook sem validacao como prova de pagamento.
+- Todos os controles de conteudo devem ser reforcados no servidor/RLS, nao apenas no navegador.
+
+## Sequencia de implementacao (sempre em PRs sem merge automatico)
+
+### 1. Conciliacao de pagamento independente de webhooks
+
+Criar servico de leitura autenticado com credenciais por ambiente. Para assinatura vinculada ao estudante:
+1. Resolver `preapproval_id` a partir de registro servidor; validar `collector_id`, `external_reference`, identidade do usuario e BRL 180.
+2. Consultar `/preapproval/{id}`, `/authorized_payments/search?preapproval_id=...`, `/authorized_payments/{id}` e, quando houver pagamento, `/v1/payments/{id}`.
+3. Exigir resultado `approved` do pagamento real associado a fatura/assinatura esperada, cobranca BRL 180, e periodo comprovado. Se a API nao fornecer dados temporais confiaveis, nao inventar `paid_through`: colocar evento em revisao manual ate mapear os campos corretos.
+4. Persistir em `billing_payments` idempotentemente pelos IDs da fatura e do pagamento; registrar atualizacoes de status tardias e estornos, sem duplicar periodo pago.
+5. Calcular entitlement efetivo como `exempt OR (last_approved_paid_through > now AND eligible_subscription)`. Nao confiar cegamente em `access_status = active` persistido, que pode ficar obsoleto depois do vencimento.
+6. Reconciliação agendada: procurar pagamentos renovados, falhados, disputados e cancelados, inclusive quando notificacoes se perderem. Registrar `last_checked_at` e falhas para auditoria.
+
+### 2. Notificacoes Mercado Pago (Webhooks)
+
+A documentacao oficial identifica `subscription_preapproval`, `subscription_authorized_payment` e `payment`; a documentacao de Assinaturas tambem contem um aviso de que a configuracao **via Suas integracoes** nao esta disponivel para Assinaturas. **Antes de ativar**, confirmar na interface e na API do vendedor ficticio o mecanismo realmente suportado e como configurar a URL/notificacoes na solucao de assinatura usada. Nao presumir que `notification_url` e aceito pelo `POST /preapproval` sem verificacao documental/empirica.
+
+Recebedor dedicado, sem JWT de cliente (`verify_jwt=false`), mas **nunca** sem autenticacao da origem:
+- Validar assinatura `x-signature`, `x-request-id`, timestamp, data ID, com o algoritmo e o segredo da configuracao efetiva; aceitar somente eventos comprovados.
+- Limitar tamanho, formatos, eventos permitidos, timestamps, e implementar deteccao de replay/idempotencia em `billing_webhook_events`.
+- Nao confiar no JSON recebido para definir pagamento ou garantir acesso; depois de validar origem, consultar a API MP novamente e conciliar pelo ID servidor.
+- Responder em tempo adequado e reenfileirar falhas; registrar status `received / verified / processed / failed`.
+- Em ambientes onde o webhook nao fornece assinatura verificavel, **nao processar concessao de acesso somente pela notificacao**: usar apenas como gatilho para leitura confirmada no provedor, com vinculo de recursos e monitoramento de falhas.
+- Segredo do webhook distinto do Access Token, somente no cofre Supabase, nunca no GitHub ou navegador.
+
+**NENHUM endpoint publico foi ativado por este documento.**
+
+### 3. Vincular assinatura a conta do aluno e preparar isencoes
+
+- Primeiro definir data/hora e snapshot de contas existentes na ativacao real, revisar os IDs com o titular e preencher `billing_exemptions` ANTES de modificar regra de acesso. Nao criar snapshot prematuro agora porque alunos adicionais podem ser cadastrados antes do lancamento.
+- Fluxo de cadastro gera uma identidade Supabase primeiro; servidor associa pedido, pessoa, assinatura e `external_reference` imprevisivel/idempotente; nao aceitar ID de outro usuario informado pelo browser.
+- Garantir RLS: usuario so le suas assinaturas, editor le conforme autorizacao; tabelas de webhook/tentativas inacessiveis ao cliente.
+- Estender `private.has_content_access()` somente apos testes e autorizacao explicita. Regra preserva isencoes e aprovacao administrativa; expiracao sem tolerancia adicional.
+- Nao alterar progresso nem dados dos alunos inadimplentes.
+
+### 4. Interface de cadastro e operacao
+
+- Redirecionar novos estudantes ao checkout, oferecer retomada de pagamento pendente, falhas e status da assinatura.
+- Coluna Assinatura no editor e filtros: Isento / Ativa / Pendente / Atrasada / Pausada / Cancelada.
+- Mostrar vencimento, data da ultima conciliacao e divergencias para o editor, sem revelar tokens ou dados completos dos cartoes.
+- Permitir cancelamento e reativacao apenas com autorizacoes claras e confirmacao servidor.
+
+### 5. Testes obrigatorios antes de lancamento
+
+- Pagamento ficticio aprovado, recusado, em analise, cancelado e estornado.
+- Renovacao mensal real em ambiente ficticio OU simulacao testada contra respostas validadas; nao inferir renovacao do primeiro pagamento.
+- Notificacao duplicada, atrasada, adulterada, sem assinatura, repetida, falha e webhook perdido; nao permitir processamento nao verificado.
+- Vencimento com zero dias de tolerancia, inclusive fuso horario e corrida concorrente entre renovacao e expiracao.
+- Novo aluno aguardando pagamento e bloqueado por RLS; antigo aluno com isencao mantem acesso.
+- Desabilitar billing por feature flag nao altera automaticamente contratos existentes no Mercado Pago.
+- Conferir `productionBillingEnabled=false` ate aprovacao explicita de lancamento.
+
+## Gates obrigatorios antes de producao
+
+[ ] Fluxo de conciliacao automatica confirmado
+[ ] Webhooks autenticados e reprocessamento testados
+[ ] Periodos de cobertura obtidos de fonte confiavel
+[ ] Controles de acesso e isencoes aprovados
+[ ] Cadastro/checkout/coluna editor testados
+[ ] Reversao e monitoramento definidos
+[ ] Credenciais reais configuradas separadamente, sem acesso da conta ficticia
+[ ] Aprovacao explicita do proprietario para publicar e habilitar a cobranca real
+
+## Referencias oficiais
+
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/overview
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
+- https://supabase.com/docs/guides/functions/auth-headers
