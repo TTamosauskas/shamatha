@@ -25,7 +25,7 @@ button:disabled {opacity:.6;cursor:wait}
 </head>
 <body><main>
 <h1>Homologação Mercado Pago — Shamatha</h1>
-<small>Versão de homologação: 2026-10-19.4</small>
+<small>Versão de homologação: 2026-10-19.5</small>
 <p>Somente para o editor principal. Esta página não altera o acesso dos alunos nem ativa cobranças de produção.</p>
 <div class="notice"><strong>Mensalidade de teste:</strong> R$ 180,00. Utilize apenas a conta vendedora fictícia e o comprador de teste do Mercado Pago.</div>
 <form id="login">
@@ -169,6 +169,26 @@ byId("reconcile").addEventListener("click",async function(){
      "Pagamentos aprovados confirmados: "+item.approvedPaymentsVerified+". "+
      "Dados gravados apenas na tabela privada de homologação. "+
      "Nenhuma alteração no acesso dos alunos.";
+   const evidence=item.cycleEvidence;
+   if(evidence && typeof evidence==="object"){
+     const dates=Array.isArray(evidence.invoiceDates)?evidence.invoiceDates:[];
+     const rows=[
+       ["Assinatura criada em",evidence.subscriptionCreatedAt],
+       ["Próxima cobrança informada pelo Mercado Pago",evidence.providerNextPaymentAt],
+       ["Início configurado da recorrência",evidence.recurringStartAt],
+       ["Fim configurado da recorrência",evidence.recurringEndAt]
+     ];
+     for(const d of dates){
+       rows.push(["Fatura — data do débito",d?.debitAt]);
+       rows.push(["Fatura — aprovação",d?.approvedAt]);
+     }
+     const lines=rows.map(([label,value])=>label+": "+(value||"não informado"));
+     display.textContent+="\n\nDATAS INFORMADAS PELO PROVEDOR (somente diagnóstico):\n"+
+       lines.join("\n")+
+       "\nATENÇÃO: essas datas ainda NÃO comprovam automaticamente o fim do período pago. "+
+       "Nenhum acesso é concedido por esta consulta.";
+     display.style.whiteSpace="pre-line";
+   }
    await check();
  }catch(err){
    display.textContent="Conciliação não concluída: "+(err.message||"erro desconhecido")+
