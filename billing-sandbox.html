@@ -35,6 +35,7 @@ button:disabled {opacity:.6;cursor:wait}
 <section id="verified" class="hidden">
 <p id="sellerInfo"></p>
 <p id="flagInfo"></p>
+<div id="subscriptionSummary" class="notice hidden" role="status"></div>
 <button id="recheck" type="button">Verificar novamente</button>
 <form id="checkout" class="hidden">
 <label>ID da conta VENDEDOR DE TESTE<input id="sellerId" type="text" inputmode="numeric" pattern="[0-9]+" required></label>
@@ -80,6 +81,23 @@ async function check(){
  byId("flagInfo").textContent=data.creationFlagOn
    ? "Criação de testes: habilitada para o editor principal."
    : "Criação de testes: DESABILITADA. Altere SHAMATHA_MP_SANDBOX_CREATE_ENABLED para true somente após confirmar o vendedor fictício.";
+ const box=byId("subscriptionSummary");
+ const state=data.inspection;
+ box.classList.toggle("hidden", !state?.found);
+ if(state?.found){
+   const statuses={pending:"Pendente",authorized:"Autorizada",paused:"Pausada",cancelled:"Cancelada"};
+   const name=statuses[state.remoteStatus]||state.remoteStatus||"Não identificado";
+   const invoiceInfo=state.invoiceQueryAvailable
+     ? state.invoices.length+" fatura(s) localizada(s)."
+     : "Consulta de faturas indisponível (não significa ausência de pagamento).";
+   const paymentInfo=state.approvedPaymentVerified
+     ? "Pagamento aprovado e confirmado pela API do Mercado Pago (homologação)."
+     : "Nenhum pagamento aprovado foi confirmado nesta consulta.";
+   box.textContent="Assinatura de teste: "+name+". "+
+     "ID: "+(state.subscriptionId||"indisponível")+". "+
+     invoiceInfo+" "+paymentInfo+
+     " Nenhuma mudança de acesso foi realizada.";
+ }
  byId("checkout").classList.toggle("hidden",!data.enabled);
  byId("verified").classList.remove("hidden");
  message("Consulta concluída. Nenhuma assinatura foi criada.");
