@@ -51,7 +51,16 @@ async function fetchMP(path: string, seller = false): Promise<Record<string, any
       headers: { Authorization: "Bearer " + MP_TOKEN },
       signal: controller.signal
     });
-    if (!response.ok) abort("Mercado Pago indisponivel (HTTP " + response.status + ").", 502);
+    if (!response.ok) {
+      const stage = seller ? "seller" :
+        path.startsWith("/preapproval/") ? "subscription" :
+        path.startsWith("/authorized_payments/search") ? "invoices" :
+        path.startsWith("/v1/payments/") ? "payment" : "unknown";
+      // Somente etapa e status, sem imprimir Access Token ou dados pessoais.
+      console.error("sandbox provider request failed", stage, response.status);
+      abort("Mercado Pago indisponivel na etapa " + stage +
+        " (HTTP " + response.status + ").", 502);
+    }
     const result = await response.json();
     if (!result || typeof result !== "object" || Array.isArray(result)) {
       abort("Resposta do Mercado Pago invalida.", 502);
@@ -123,10 +132,10 @@ async function reconcileOne(attempt: {
   }
 
   const payload = await fetchMP("/authorized_payments/search?preapproval_id=" +
-    encodeURIComponent(id) + "&limit=20&offset=0");
+    encodeURIComponent(id) + "&limit=10");
   if (!Array.isArray(payload.results)) abort("Lista de faturas invalida.", 502);
-  if (Number(payload.paging?.total ?? payload.results.length) > 20) {
-    abort("Mais de 20 faturas; concilie com paginacao antes de gravar.", 409);
+  if (Number(payload.paging?.total ?? payload.results.length) > 10) {
+    abort("Mais de 10 faturas; concilie com paginacao segura antes de gravar.", 409);
   }
   const now = new Date().toISOString();
   const rows: InvoiceRow[] = [];
