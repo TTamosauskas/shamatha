@@ -228,6 +228,28 @@ A classificação de exibição passou em **13 testes unitários sintéticos**; 
 
 Validação depois de merge explícito do PR #56: abrir manualmente `https://ttamosauskas.github.io/shamatha/minha-assinatura.html` com sessão de teste e verificar texto/modal de pagamento indisponível. Como há atualmente apenas dois perfis de editor, o teste de apresentação com aluno autenticado exigiria uma conta de aluno de teste separada, que não foi criada.
 
+## Fase 4 — avanço após publicação de Minha assinatura (19/10/2026)
+
+**Confirmado:** PR #56 mesclado pelo proprietário; GitHub Pages publicou `minha-assinatura.html` com pagamento desativado. PR #55 havia publicado a coluna Assinatura no editor. Nenhum usuário novo foi criado por estes merges.
+
+**PR #57 (ABERTO, SEM MERGE)** adiciona atalhos informativos para `Minha assinatura` a contas pendentes em `index.html` e a contas dentro de `app.html`. A página de destino continua só leitura, sem geração de checkout.
+
+**Estrutura de checkout de alunos reservada no banco:** migration `20261019225500_billing_checkout_intents.sql` aplicada ao Supabase; tabela `billing_checkout_intents` com RLS e **nenhuma policy de cliente**, chave de idempotência, e índice único para uma tentativa não-finalizada por `(user_id,environment)`. Não cria cobrança ou muda acesso.
+
+**Código preparatório criado somente no PR #49 (DRAFT)**:
+- `supabase/functions/shamatha-create-subscription/index.ts` (NÃO IMPLANTADO no Supabase) será futuramente o único ponto servidor para criar assinatura de aluno;
+- usa `admin.auth.getUser` e e-mail confirmado pelo próprio Supabase Auth, perfil `student`, recusa isentos e suspensos, não recebe e-mail/ID/valor do browser;
+- configuração de recorrência mensal BRL 180; POST no Mercado Pago com `external_reference` e idempotency key da reserva; busca novamente a mesma tentativa antes de cogitar criar outra;
+- em falha ambígua, marca `needs_review` e **não repete automaticamente** o POST;
+- somente cria vínculo com `billing_subscriptions` em estado `pending`, `paid_through=null`; **não dá acesso**;
+- ao tentar reutilizar o checkout, lê a assinatura do provedor e compara pagador, vendedor, referência e valor; se já autorizada, não devolve link de pagamento, aguarda conciliação.
+
+**Três travas desligadas por padrão:** `SHAMATHA_BILLING_PRODUCTION_ENABLED`, `SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED` e `SHAMATHA_MP_PRODUCTION_CREATE_ENABLED`. Além delas exige credencial/seller ID de produção, que **não foram configurados nesta etapa**. As travas não são substitutos de webhook, verificação de pagamentos, snapshot final de isenções ou aprovação humana; essa função não deve ser implantada antes da Fase 3 e homologação completa.
+
+**Testes:** `tests/student-checkout-gates.test.mjs` valida bloqueio por todas as flags, perfil editor, isenção, e-mail não confirmado, conta suspensa/estado administrativo inválido, assinatura já vinculada e caso válido. Ainda não houve teste de integração de checkout de aluno ou chamadas de criação com credenciais reais.
+
+**Mantenha separado:** cadastro antigo não redireciona automaticamente ao pagamento; links da PR #57 levam apenas à tela de consulta. Entrega de checkout ativo continua pendente de assinatura/autorização de webhook, reconciliação automática e revisão de RLS de conteúdo.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
