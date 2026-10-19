@@ -598,10 +598,10 @@
     el.modal.classList.add('hidden'); document.body.style.overflow='';
   }
 
-  function mediaMarkup(url) {
+  function mediaMarkup(url, videoLimitSeconds = null) {
     if (!url) return '<div class="media-empty">O editor ainda está configurando o vídeo desta etapa.</div>';
     const youtubeId = extractYouTubeId(url);
-    if (youtubeId) return `<div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0&playsinline=1" title="Vídeo da etapa" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+    if (youtubeId) return `<div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0&playsinline=1${videoLimitSeconds ? `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : ""}" title="Vídeo da etapa" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
     if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) return `<div class="video-frame"><video controls playsinline preload="metadata" src="${escapeHtml(url)}"></video></div>`;
     return `<div class="video-frame"><iframe src="${escapeHtml(url)}" title="Vídeo da etapa" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
   }
@@ -622,8 +622,9 @@
   function renderIntro() {
     sessionState='intro';
     const st=stageState(), cfg=config(); st.introStarted=true; saveProgress();
-    el.scroll.innerHTML=`<div class="view"><div class="unit-heading"><p class="eyebrow">Etapa ${selectedStage}</p><h1>${escapeHtml(cfg.unitName)}</h1><p>${escapeHtml(cfg.objective || '')}</p></div>${mediaMarkup(cfg.videoUrl)}<div class="action-stack"><button class="primary" id="goPractice">${st.introDone ? 'Ir para a prática' : 'Continuar para a prática'}</button><button class="ghost" id="backHomeIntro">Voltar ao caminho</button></div></div>`;
-    document.getElementById('goPractice').addEventListener('click',()=>{st.introDone=true;saveProgress();renderPreparation();});
+    el.scroll.innerHTML=`<div class="view"><div class="unit-heading"><p class="eyebrow">Etapa ${selectedStage}</p><h1>${escapeHtml(cfg.unitName)}</h1><p>${escapeHtml(cfg.objective || '')}</p></div>${mediaMarkup(cfg.videoUrl, cfg.videoLimitSeconds)}<div class="action-stack"><button class="primary" id="goPractice">${st.introDone ? 'Ir para a prática' : 'Continuar para a prática'}</button><button class="ghost" id="backHomeIntro">Voltar ao caminho</button></div></div>`;
+    window.ShamathaYouTubeLimit?.attach(el.scroll, cfg.videoLimitSeconds);
+     document.getElementById('goPractice').addEventListener('click',()=>{st.introDone=true;saveProgress();renderPreparation();});
     document.getElementById('backHomeIntro').addEventListener('click',closeUnit);
   }
 
