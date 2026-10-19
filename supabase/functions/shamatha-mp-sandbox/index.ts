@@ -157,6 +157,104 @@ async function createTestCheckout(editorId: string, email: string, expectedSelle
   }
 }
 
+
+type InvoiceSummary = {
+  id: string;
+  status: string;
+  paymentStatus: string | null;
+  approvedPaymentVerified: boolean;
+  debitDate: string | null;
+};
+
+async function mpRead(path: string, token: string): Promise<any> {
+  // Fixed MP API host; callers cannot inject arbitrary URLs or tokens.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+  try {
+    const response = await fetch("https://api.mercadopago.com" + path, {
+      headers: { Authorization: "Bearer " + token },
+      signal: controller.signal
+    });
+    if (!response.ok) fail("Consulta de cobranca no Mercado Pago indisponivel (HTTP " + response.status + ").", 502);
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function inspectLatestTest(editorId: string, sellerId: string | null, token: string) {
+  const { data: attempt, error } = await admin.from("billing_sandbox_attempts")
+    .select("mp_preapproval_id,state,created_at")
+    .eq("editor_id", editorId)
+    .order("created_at", { ascending: false })
+    .limit(1).maybeSingle();
+  if (error) fail("Falha ao consultar tentativa local de assinatura.", 502);
+  if (!attempt) return { found: false };
+  const id = String(attempt.mp_preapproval_id || "");
+  if (!/^[a-zA-Z0-9_-]{12,64}$/.test(id) || !token) {
+    return { found: true, localState: attempt.state, remoteStatus: null,
+      invoiceQueryAvailable: false, invoices: [], approvedPaymentVerified: false };
+  }
+
+  const subscription = await mpRead("/preapproval/" + encodeURIComponent(id), token);
+  if (String(subscription?.id || "") !== id) fail("Identificacao remota da assinatura diverge.", 502);
+  if (sellerId && String(subscription?.collector_id || "") !== sellerId) {
+    fail("Assinatura pertence a outro vendedor.", 403);
+  }
+  if (Number(subscription?.auto_recurring?.transaction_amount) !== 180 ||
+      String(subscription?.auto_recurring?.currency_id || "") !== "BRL") {
+    fail("Assinatura nao corresponde a R$ 180 BRL.", 502);
+  }
+  let invoices: InvoiceSummary[] = [];
+  let invoiceQueryAvailable = false;
+  try {
+    const body = await mpRead("/authorized_payments/search?preapproval_id=" +
+      encodeURIComponent(id) + "&limit=10", token);
+    if (!Array.isArray(body?.results)) throw new Error("invoice search invalid");
+    invoiceQueryAvailable = true;
+    for (const inv of body.results.slice(0, 10)) {
+      if (String(inv?.preapproval_id || "") !== id) continue;
+      const paymentId = String(inv?.payment?.id || "");
+      let verified = false;
+      if (/^\d+$/.test(paymentId) && inv?.payment?.status === "approved" &&
+        String(inv?.currency_id || "") === "BRL" &&
+        Number(inv?.transaction_amount) === 180) {
+        try {
+          const payment = await mpRead("/v1/payments/" + encodeURIComponent(paymentId), token);
+          verified = String(payment?.id || "") === paymentId &&
+            payment?.status === "approved" &&
+            Number(payment?.transaction_amount) === 180 &&
+            payment?.currency_id === "BRL";
+        } catch (err) {
+          console.error("payment verification unavailable", String((err as Error)?.message || err));
+        }
+      }
+      invoices.push({
+        id: String(inv?.id || ""),
+        status: String(inv?.status || "unknown"),
+        paymentStatus: inv?.payment?.status ? String(inv.payment.status) : null,
+        approvedPaymentVerified: verified,
+        debitDate: inv?.debit_date ? String(inv.debit_date) : null
+      });
+    }
+  } catch (err) {
+    // Consulta de faturas indisponivel nao deve ser interpretada como 0 pagamentos.
+    console.error("invoice lookup unavailable", String((err as Error)?.message || err));
+  }
+  return {
+    found: true,
+    localState: String(attempt.state || ""),
+    subscriptionId: id,
+    remoteStatus: String(subscription?.status || "unknown"),
+    nextPaymentDate: subscription?.next_payment_date || null,
+    invoiceQueryAvailable,
+    invoices,
+    approvedPaymentVerified: invoices.some(x => x.approvedPaymentVerified),
+    // Never changes student access; this endpoint is read-only for owner.
+    accessGrantedBySandbox: false
+  };
+}
+
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   const requestOrigin = req.headers.get("Origin");
@@ -186,7 +284,8 @@ Deno.serve(async req => {
         enabled: Deno.env.get("SHAMATHA_MP_SANDBOX_CREATE_ENABLED") === "true" &&
           Boolean(configuredToken) && sellerLookupOk,
         amountCents: 18000, currency: "BRL",
-        productionBillingEnabled: false
+        productionBillingEnabled: false,
+        inspection: await inspectLatestTest(editorId, sellerId, configuredToken)
       });
     }
     const body = await req.json().catch(() => ({}));
