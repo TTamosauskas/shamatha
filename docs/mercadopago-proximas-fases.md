@@ -107,7 +107,13 @@ Correcao preparada e **implantada** na funcao `shamatha-mp-sandbox-reconcile` v2
 - Logs diagnosticam so o estagio da consulta (`seller`, `subscription`, `invoices`, `payment`) e o codigo HTTP sem qualquer segredo. Uma nova falha pode ser atribuida ao estagio exato.
 - Nao ha novas assinaturas, notificacoes, liberacao de aluno ou escrita no schema de producao.
 
-**Validacao pendente:** o editor principal precisa clicar novamente em `Conciliar faturas de teste no Supabase`. O deploy v2 estar ACTIVE nao prova conciliacao concluida. A mudanca dos parametros e uma hipotese sustentada pelo fluxo GET anterior, ainda sem teste autenticado da v2.
+**Validacao concluida no teste manual em 19/10/2026:** apos instalar a versao 2, o editor principal clicou em "Conciliar faturas de teste no Supabase" e a funcao retornou assinatura `authorized`, 1 fatura registrada/verificada e 1 pagamento aprovado confirmado. Consulta SQL subsequente confirmou:
+- `public.billing_sandbox_invoice_observations`: **1 linha**, `mp_invoice_id=7033097180`, `mp_payment_id=185024682360`, `invoice_status=processed`, `payment_status=approved`, `payment_approved_verified=true`, `amount_cents=18000`, `currency=BRL`;
+- assinatura `c5b3cfd34ca740cb8d1b7687c5ad13b2` e status remoto `authorized`;
+- `billing_subscriptions=0`, `billing_payments=0`, `billing_webhook_events=0`; **nenhum acesso de aluno alterado**.
+- Nova tabela continua com RLS ativo, sem policies de cliente.
+
+Isso valida a conciliacao manual da **primeira cobranca de homologacao**. Ainda NAO valida duplicacao/repeticao do mesmo evento, renovacao, falha, reembolso, webhook, nem derivacao correta de `paid_through` para acesso de producao. Proximo teste seguro: executar a mesma conciliacao novamente e conferir que continua existindo apenas 1 fatura, sem novo checkout nem pagamento.
 
 ## Gates obrigatorios antes de producao
 
