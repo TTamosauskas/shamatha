@@ -139,6 +139,37 @@ Adicionado módulo puro `supabase/functions/_shared/mercadopago-webhook-signatur
 
 O receptor preparado `shamatha-mp-sandbox-webhook` agora deduplica por ID imutável do evento, não por `x-request-id` variável. **O receptor não foi implantado nem configurado no Mercado Pago. Os testes são unitários sintéticos, não validam assinatura de uma notificação real.** Não compartilhar segredo nem ativar webhook até confirmar o formato real em testes.
 
+## Motor de acesso — homologacao sintetica sem efeito nos alunos
+
+Em 19/10/2026, o motor puro `supabase/functions/_shared/billing-entitlement.mjs` foi adicionado ao PR #49, com `tests/billing-entitlement.test.mjs`. Executado localmente com Node.js 22, **22 testes passaram, 0 falharam**.
+
+Testes incluem: primeira mensalidade aprovada, `authorized` sem pagamento, pagamento nao confirmado, recusado, pendente, chargeback, refund, troca de assinatura, valor ou moeda incorreta, usuario existente isento, suspensao administrativa, renovacao aprovada/recusada, periodo futuro, lacuna entre periodos, cancelamento, pausa, fuso horario, fronteira exata de vencimento e eventos duplicados.
+
+- **Sem tolerancia:** `now < paidThrough`; no instante exato `now === paidThrough` o motor nega acesso.
+- Somente intervalo `[periodStart, periodEnd)` de cobranca real aprovada e vinculada a assinatura permite acesso.
+- Exige `verifiedByProvider=true`, status `approved`, R$180 BRL e assinatura correta.
+- Preserva isencao somente quando concedida por servidor e sujeita ao requisito atual de aprovacao administrativa. Suspensao tem prioridade sobre isencao.
+- *Proposta pendente de aprovacao*: pausa/cancelamento de assinatura nao remove acesso antes do fim ja efetivamente pago; depois disso bloqueia.
+- Nao inferir `periodEnd` de `debit_date` ou `next_payment_date` sem demonstrar que sao datas corretas de cobertura para aquela fatura. Datas simuladas dos testes NAO SAO vencimentos reais.
+- **NAO integrados:** RLS `private.has_content_access`, login, API, coluna editor e contratos reais continuam sem alteracao.
+
+## Diagnostico dos periodos no Mercado Pago
+
+Funcao `shamatha-mp-sandbox-reconcile` v3 implantada somente para homologacao. Ao consultar o vendedor ficticio devolve `cycleEvidence` com datas selecionadas do retorno de `/preapproval/{id}` e faturas, quando existirem. Nao entrega dados de cartao nem e-mails. Continua `paidThrough=null`, `coveragePeriodVerified=false` e `grantsStudentAccess=false`.
+
+Interface preparada no **PR #54** (aberto, sem merge): depois de publicacao voluntaria do PR #54, o editor principal clica `Conciliar faturas de teste no Supabase` e confere os campos sem criar nova cobranca. A interpretacao dessas datas para periodo efetivamente pago continua pendente de validacao. Nao usar `next_payment_date` ou `debit_date` automaticamente como `paidThrough`.
+
+## Webhooks de assinaturas — restricao documental conferida
+
+A documentacao oficial do Mercado Pago estabelece que configuracao via `Suas integracoes` **nao se aplica a Assinaturas**, recomendando configurar durante a criacao de pagamentos; o endpoint atualmente usado `POST /preapproval` nao tem nesse fluxo uma URL de notificacao validada em teste. Os topicos `subscription_preapproval`, `subscription_authorized_payment` e `payment` sao documentados, porem nenhum evento de assinatura real foi recebido nesta implementacao.
+
+O receptor assinado permanece somente no codigo do PR #49 e **NAO esta implantado**; precisa validar o mecanismo de emissao para este produto antes de ligar endpoint publico. Enquanto isso, a consulta autenticada manual de faturas e a conciliacao pelo provedor continuam as unicas provas no prototipo. Nao usar `IPN` sem assinatura como prova de pagamento.
+
+Fontes:
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/subscription-management
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
