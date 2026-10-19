@@ -115,6 +115,30 @@ Correcao preparada e **implantada** na funcao `shamatha-mp-sandbox-reconcile` v2
 
 Isso valida a conciliacao manual da **primeira cobranca de homologacao**. Ainda NAO valida duplicacao/repeticao do mesmo evento, renovacao, falha, reembolso, webhook, nem derivacao correta de `paid_through` para acesso de producao. Proximo teste seguro: executar a mesma conciliacao novamente e conferir que continua existindo apenas 1 fatura, sem novo checkout nem pagamento.
 
+## Segundo teste: conciliação repetida e idempotência — APROVADO
+
+Na segunda execução autenticada do botão `Conciliar faturas de teste no Supabase`, o editor recebeu `authorized`, **1 fatura** e **1 pagamento aprovado**, sem qualquer criação de cobrança.
+
+Confirmação independente por SQL:
+- `billing_sandbox_invoice_observations` tem 1 linha, 1 `mp_invoice_id` distinto (`7033097180`), 1 `mp_payment_id` distinto (`185024682360`) e 1 pagamento com `payment_approved_verified=true`;
+- `created_at=2026-10-19 21:03:09.0443+00`, enquanto `last_checked_at=2026-10-19 21:09:51.385+00`. Houve atualização da observação existente, não inserção duplicada;
+- `billing_subscriptions=0` e `billing_payments=0`.
+
+**Limite da evidência:** idempotência do replay manual da mesma fatura está validada. Ainda não prova comportamento sob concorrência, retentativas de webhook, renovação ou múltiplas faturas.
+
+## Testes de assinatura criptografica de Webhook — PREPARADOS, nao implantados
+
+Consulta à documentação oficial Mercado Pago em 19/10/2026 confirmou uma restrição: **a configuração de Webhooks por "Suas integrações" não está disponível para Assinaturas**; a página orienta a configuração durante a criação do pagamento. A API utilizada neste teste foi `POST /preapproval`; a integração ainda precisa identificar o mecanismo compatível e documentado para receber notificações das cobranças automáticas antes de expor um endpoint. Não presumir suporte ao campo `notification_url` no `/preapproval`.
+
+Adicionado módulo puro `supabase/functions/_shared/mercadopago-webhook-signature.mjs`, usado pelo código de receptor ainda desligado. Foram executados localmente **10 testes sintéticos de HMAC-SHA256**, todos aprovados (`node --test tests/mercadopago-webhook-signature.test.mjs`):
+- notificação legitimamente assinada, normalização de ID;
+- adulteração de `data.id` ou `x-request-id`;
+- segredo errado, assinatura ausente/malformada;
+- timestamp vencido/futuro fora da janela de 15 minutos;
+- duplicação de campos de assinatura e caracteres injetados no manifesto.
+
+O receptor preparado `shamatha-mp-sandbox-webhook` agora deduplica por ID imutável do evento, não por `x-request-id` variável. **O receptor não foi implantado nem configurado no Mercado Pago. Os testes são unitários sintéticos, não validam assinatura de uma notificação real.** Não compartilhar segredo nem ativar webhook até confirmar o formato real em testes.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
