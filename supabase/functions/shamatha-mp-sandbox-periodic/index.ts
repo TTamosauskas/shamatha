@@ -3,7 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.10";
 import { verifySandboxInvoices } from "../_shared/mercadopago-sandbox-invoices.mjs";
 
 /**
- * STAGED, NOT DEPLOYED/SCHEDULED. Strictly fake seller + sandbox observation table.
+ * DEPLOYED IN INERT MODE (verify_jwt=true), NOT SCHEDULED. Fake seller only.
+ * JWT gateway must remain enabled until cron secret has been installed and tested.
  *
  * Future pg_cron + pg_net caller will use Authorization: Bearer <Vault secret>.
  * verify_jwt=false is required ONLY when using this independently verified
