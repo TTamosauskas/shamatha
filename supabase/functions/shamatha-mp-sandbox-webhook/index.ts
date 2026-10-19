@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.10";
+import { verifyMercadoPagoSignature } from "../_shared/mercadopago-webhook-signature.mjs";
 
 // CODIGO PREPARADO, NAO IMPLANTAR antes de configurar e testar webhook REAL de
 // assinatura na conta vendedora FICTICIA. Sem efeitos sobre alunos/assinaturas reais.
@@ -48,30 +49,6 @@ async function bodyLimited(req: Request): Promise<string> {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
-function signatureParts(value: string): { ts: string; v1: string } | null {
-  const parts = new Map(value.split(",").map(s => s.trim().split("=", 2)) as [string, string][]);
-  const ts = parts.get("ts") || "";
-  const v1 = parts.get("v1") || "";
-  if (!/^\d{10,13}$/.test(ts) || !/^[0-9a-f]{64}$/i.test(v1)) return null;
-  const time = Number(ts) * (ts.length === 10 ? 1000 : 1);
-  if (!Number.isFinite(time) || Math.abs(Date.now() - time) > MAX_AGE_MS) return null;
-  return { ts, v1 };
-}
-
-async function signatureValid(req: Request, dataId: string): Promise<boolean> {
-  const signature = signatureParts(req.headers.get("x-signature") || "");
-  const requestId = req.headers.get("x-request-id") || "";
-  if (!signature || !/^[a-zA-Z0-9_-]{1,160}$/.test(requestId)) return false;
-  // Referencia oficial Mercado Pago: id:<data.id>;request-id:<x-request-id>;ts:<ts>;
-  // Manter 'id' minusculo, como usa o SDK oficial.
-  const manifest = "id:" + dataId.toLowerCase() + ";request-id:" + requestId +
-    ";ts:" + signature.ts + ";";
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(TEST_SECRET),
-    { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-  const expected = new Uint8Array(signature.v1.match(/../g)!.map(x => parseInt(x, 16)));
-  return crypto.subtle.verify("HMAC", key, expected, new TextEncoder().encode(manifest));
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return reply(405, "method_not_allowed");
   if (!enabled || !TEST_SECRET || !SERVICE_KEY || !URL_SUPABASE) {
@@ -82,7 +59,12 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     dataId = url.searchParams.get("data.id") || "";
     if (!numericOrSubscriptionId(dataId)) return reply(400, "invalid_data_id");
-    if (!await signatureValid(req, dataId)) return reply(401, "invalid_signature");
+    if (!await verifyMercadoPagoSignature({
+      header: req.headers.get("x-signature") || "",
+      requestId: req.headers.get("x-request-id") || "",
+      dataId,
+      secret: TEST_SECRET
+    })) return reply(401, "invalid_signature");
   } catch (e) {
     console.error("webhook signature parse failure", String((e as Error)?.message || e));
     return reply(401, "invalid_signature");
@@ -110,8 +92,9 @@ Deno.serve(async (req: Request) => {
 
   // Somente registra alerta validado: nao confia em status recebido e NUNCA
   // libera acesso. Conciliacao posterior consulta as faturas e pagamentos na API.
-  const requestId = req.headers.get("x-request-id") || "";
-  const eventKey = "sandbox:" + type + ":" + eventId + ":" + requestId;
+  // Retentativas do mesmo evento podem ter x-request-id diferente. Deduplicar
+  // pelo ID permanente da notificacao, nao pelo ID da chamada HTTP.
+  const eventKey = "sandbox:" + type + ":" + eventId;
   const sanitized = {
     type,
     action: String(payload.action || "").slice(0, 96),
