@@ -23,7 +23,10 @@ function instant(value) {
 
 function verifiedPeriod(payment, subscriptionId) {
   if (!payment || typeof payment !== 'object') return null;
-  if (payment.verifiedByProvider !== true || payment.status !== 'approved') return null;
+  // Two independent proofs: payment confirmation AND contractual coverage window.
+  // An approved invoice with only next_payment_date must NOT grant access.
+  if (payment.verifiedByProvider !== true || payment.coveragePeriodVerified !== true ||
+      payment.status !== 'approved') return null;
   if (payment.subscriptionId !== subscriptionId) return null;
   if (payment.amountCents !== BILLING_MONTHLY_CENTS || payment.currency !== BILLING_CURRENCY) return null;
   if (payment.refunded === true || payment.chargedBack === true || payment.disputed === true) return null;
@@ -40,7 +43,7 @@ function verifiedPeriod(payment, subscriptionId) {
  * - exempt: boolean, server-granted exemption (must not come from user input)
  * - subscriptionId: identifier securely attached to current student in server DB
  * - providerStatus: preapproval status, for display only; NOT proof of payment
- * - payments: trusted reconciled and independently verified payment periods
+ * - payments: trusted reconciled payment AND independently verified coverage periods (coveragePeriodVerified===true)
  * - now: RFC3339 timestamp with offset, generally new Date().toISOString()
  *
  * Policy candidates for final approval: cancelled/paused subscriptions retain
