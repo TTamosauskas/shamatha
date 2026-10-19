@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Shamatha — Homologação Mercado Pago</title>
+  <link rel="stylesheet" href="./assets/site.css">
+  <style>
+    body { padding: 28px 12px; background: #f5f9fb; color:#18313a; font-family:system-ui,sans-serif; }
+    main { max-width: 660px; margin: 0 auto; }
+    .panel { padding:24px; background:white; border:1px solid #d6e2e7; border-radius:14px; }
+    .notice { padding:12px; background:#f0f4f7; border-radius:8px; margin:16px 0; }
+    .field { margin-top:18px; }
+    input[type=email] { display:block; width:100%; padding:12px; box-sizing:border-box; }
+    button { margin: 12px 0 0; padding:11px 15px; cursor:pointer; }
+    button:disabled { cursor:not-allowed; opacity:.6; }
+    #result { white-space:pre-wrap; overflow-wrap:anywhere; margin-top:16px; }
+  </style>
+</head>
+<body><main><div class="panel">
+  <h1>Homologação de assinaturas</h1>
+  <p>Ferramenta interna para testar assinaturas Mercado Pago. <strong>Não atende alunos e não libera acesso ao Shamatha.</strong></p>
+  <div class="notice">Mensalidade de teste: <strong>R$ 180,00</strong>. Requer sessão do editor principal, conta vendedora fictícia e credenciais de homologação.</div>
+  <button id="check" type="button">Verificar configuração</button>
+  <form id="test" hidden>
+    <div class="field"><label for="payer">E-mail da conta COMPRADOR DE TESTE (@testuser.com)</label>
+    <input type="email" id="payer" autocomplete="off" required placeholder="test_user_123456@testuser.com"></div>
+    <p><label><input type="checkbox" id="ack" required> Confirmo que não estou usando vendedor nem comprador reais.</label></p>
+    <button id="create" type="submit">Criar link de assinatura de teste</button>
+  </form>
+  <p id="result" role="status" aria-live="polite"></p>
+  <p><a href="./editor.html">Voltar ao editor</a></p>
+</div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./assets/config.js"></script>
+<script>
+(() => {
+  const result = document.getElementById('result');
+  const check = document.getElementById('check');
+  const form = document.getElementById('test');
+  const submit = document.getElementById('create');
+  const cfg = window.SHAMATHA_CONFIG;
+  const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
+  const endpoint = cfg.supabaseUrl + '/functions/v1/shamatha-mp-sandbox';
+  async function call(method, body) {
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Entre com a conta do editor principal antes de continuar.');
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        Authorization: 'Bearer ' + token,
+        apikey: cfg.supabasePublishableKey,
+        'Content-Type': 'application/json'
+      },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    });
+    const value = await response.json();
+    if (!response.ok) throw new Error(value.error || 'Erro HTTP ' + response.status);
+    return value;
+  }
+  check.addEventListener('click', async () => {
+    check.disabled = true;
+    result.textContent = 'Verificando…';
+    try {
+      const status = await call('GET');
+      result.textContent = status.enabled
+        ? 'Homologação habilitada. Nenhuma cobrança foi criada.'
+        : 'Homologação desabilitada. Configure os segredos e habilite explicitamente.';
+      form.hidden = !status.enabled;
+    } catch (error) {
+      result.textContent = error.message;
+    } finally { check.disabled = false; }
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    submit.disabled = true;
+    result.textContent = 'Consultando o Mercado Pago…';
+    try {
+      const value = await call('POST', {
+        mode: 'sandbox', payerEmail: document.getElementById('payer').value
+      });
+      const url = new URL(value.checkoutUrl);
+      if (url.protocol !== 'https:' || !url.hostname.includes('mercadopago.')) throw new Error('URL de checkout inesperada.');
+      const link = document.createElement('a');
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Abrir checkout de teste no Mercado Pago';
+      result.replaceChildren(document.createTextNode('Assinatura de teste criada. '), link);
+    } catch (error) { result.textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>
