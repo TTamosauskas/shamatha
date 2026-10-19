@@ -196,6 +196,20 @@ async function reconcileOne(attempt: {
     observedInvoices: rows.length,
     approvedPaymentsVerified: rows.filter(x => x.payment_approved_verified).length,
     checkedAt: now,
+    // DIAGNOSTICO DE DATAS, NAO UM PERIODO DE DIREITO A ACESSO.
+    // Somente campos explicitamente consultados do provedor ficticio.
+    cycleEvidence: {
+      subscriptionCreatedAt: validDate(sub.date_created),
+      providerNextPaymentAt: validDate(sub.next_payment_date),
+      recurringStartAt: validDate(sub.auto_recurring?.start_date),
+      recurringEndAt: validDate(sub.auto_recurring?.end_date),
+      invoiceDates: rows.map(row => ({
+        debitAt: row.debit_date,
+        approvedAt: row.payment_approved_at,
+        verifiedApproved: row.payment_approved_verified
+      }))
+    },
+    coveragePeriodVerified: false,
     paidThrough: null,
     grantsStudentAccess: false
   };
