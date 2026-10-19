@@ -199,6 +199,25 @@ Referencias:
 - https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/resources/glossary
 
+## Execução do plano original em seis fases — revisão 19/10/2026
+
+| Fase original | Estado atual | Próxima ação necessária |
+|---|---|---|
+| 1. Banco e preservação | Estrutura preparatória `billing_exemptions`, `billing_subscriptions`, `billing_payments`, `billing_webhook_events` aplicada. **2 de 2 perfis atuais isentos**, via migration `billing_existing_profiles_exemptions`. Perfis continuam com seu estado administrativo anterior; não há bloqueio financeiro. | Fazer snapshot final de TODOS os perfis anteriores ao go-live (inclusive novos que chegarem até então) antes de ligar controles |
+| 2. Mercado Pago fictício | Checkout mensal de R$180 testado, identificação do vendedor fictício, confirmação e proteção contra tentativas duplicadas por editor/comprador | Validar criação vinculada a alunos reais de teste (identidade e status) **sem ativar produção** |
+| 3. Confirmação de pagamentos | Consulta remota aprovada; 1 fatura e 1 pagamento idempotentes no livro de homologação. Receptor de webhook só em código, desativado | Confirmar o mecanismo documentado de notificações para `/preapproval`; testar webhook real, assinatura, retentativas e reconciliação automática |
+| 4. Interface do aluno e editor | **PR #55** propõe coluna `Assinatura` (Isento, Ativa, Pendente, Atrasada, Pausada, Cancelada), somente leitura; teste determinístico de 9 casos aprovado | Publicar PR #55 apenas mediante autorização; depois preparar checkout de aluno, pendência e regularização sem efeitos live |
+| 5. RLS e checagem automática | Motor isolado de acesso testado com confirmação de pagamento e cobertura, ainda não conectado à RLS; cron ainda não configurado | Definir fonte contratual de `paid_through`, testar scheduler sem credenciais públicas, políticas de conteúdo e rollback |
+| 6. Homologação e ativação | Primeiro pagamento + idempotência homologados; simulações de expiração/renovação aprovadas | Simular e validar fluxo real de falha, renovação, cancelamento, estorno, inadimplência e reativação antes de autorização de produção |
+
+**Nomes técnicos:** no banco foram usados prefixos `billing_*` para evitar ambiguidade de tabelas; correspondem conceitualmente a `subscriptions`, `subscription_payments` e `payment_webhook_events` do plano original. Não criar tabelas duplicadas com outros nomes.
+
+**Isenção inicial aplicada diretamente ao Supabase:** migration `20261019214500_billing_existing_profiles_exemptions.sql` usou `INSERT ... SELECT FROM profiles ON CONFLICT DO NOTHING` e registrou os 2 perfis atuais (ambos editores), sem modificar `profiles` e sem ativar filtros de acesso. Não significa que todo usuário novo criado antes do go-live já estará isento: repetir o lote no momento da ativação, incluindo todos os perfis cadastrados até a data definida. A isenção persiste até decisão explícita posterior.
+
+**PR #55** altera apenas interface/backend de leitura do editor; o repositório só recebeu a proposta e não há merge autorizado. O editor atualmente lista apenas `role=student`, e o projeto ainda não tem perfis `student`; por isso a coluna pode não ter linhas para exibir hoje. Futuramente, somente períodos efetivamente pagos (com data confiável) deverão figurar como `Ativa`; não confundir estado de assinatura com estado administrativo.
+
+**Webhooks:** Mercado Pago explica que a configuração via `Suas integrações` não está disponível para Assinaturas; deve ser tratada na criação do pagamento. Para a assinatura `POST /preapproval` usada aqui, ainda não foi comprovado um parâmetro de URL de notificação nessa chamada. Não inventar `notification_url`; se a forma suportada depender de API distinta, adaptar com teste fictício. A checagem periódica automatizada com Supabase Cron + `pg_net` e segredo no Vault é documentada, mas ainda não foi instalada.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
