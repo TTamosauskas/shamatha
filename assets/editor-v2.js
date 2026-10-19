@@ -67,6 +67,15 @@ function statusLabel(status) {
   return status === 'approved' ? 'Aprovado' : status === 'suspended' ? 'Suspenso' : 'Pendente';
 }
 
+// Estado financeiro informativo; não altera aprovação administrativa.
+function billingStatusLabel(code) {
+  const labels = {
+    exempt:'Isento', active:'Ativa', pending:'Pendente',
+    overdue:'Atrasada', paused:'Pausada', cancelled:'Cancelada'
+  };
+  return labels[code] || 'Pendente';
+}
+
 function renderUsers() {
   const users = editorData.users || [];
   $('userCount').textContent = `${users.length} ${users.length === 1 ? 'usuário' : 'usuários'}`;
@@ -96,9 +105,10 @@ function renderUsers() {
       <td class="user-email-cell">${esc(user.email)}</td>
       <td>${roleControl}</td>
       <td>${stateControl}</td>
+      <td class="user-billing-cell" title="Estado financeiro informativo; cobranças reais ainda não foram ativadas"><span class="badge">${esc(billingStatusLabel(user.billingStatus))}</span></td>
       <td class="user-actions-cell">${deleteControl}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="4" class="muted">Ainda não há usuários cadastrados.</td></tr>';
+  }).join('') : '<tr><td colspan="5" class="muted">Ainda não há usuários cadastrados.</td></tr>';
 
   document.querySelectorAll('.user-role').forEach(select => select.addEventListener('change', async () => {
     select.disabled = true;
