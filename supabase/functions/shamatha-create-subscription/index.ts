@@ -39,7 +39,7 @@ function validMercadoPagoCheckout(url: unknown): url is string {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" &&
-      /(^|\\.)mercadopago\\.(com|com\\.br|com\\.ar|com\\.mx|com\\.uy)$/.test(parsed.hostname);
+      /(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(parsed.hostname);
   } catch { return false; }
 }
 function validSubscriptionId(id: unknown): id is string {
@@ -47,7 +47,7 @@ function validSubscriptionId(id: unknown): id is string {
 }
 function validEmail(email: unknown): email is string {
   return typeof email === "string" && email.length <= 255 &&
-    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 async function mpGet(url: string) {
   const controller = new AbortController();
@@ -65,7 +65,7 @@ async function mpGet(url: string) {
 }
 
 async function requireStudent(req: Request) {
-  const jwt = String(req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+  const jwt = String(req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!jwt) halt("AUTH_REQUIRED", 401);
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data?.user) halt("SESSION_INVALID", 401);
@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
     const operational = checkStudentCheckoutGate({
       productionEnabled: PRODUCTION_ENABLED,
       checkoutEnabled: CHECKOUT_ENABLED,
-      sellerConfigured: !!PROD_TOKEN && /^\\d+$/.test(PROD_SELLER_ID),
+      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
       role: "student", isVerifiedEmail: true
     });
     if (!operational.allowed) halt(operational.reason, 503);
@@ -239,7 +239,7 @@ Deno.serve(async (req: Request) => {
     const eligibility = checkStudentCheckoutGate({
       productionEnabled: PRODUCTION_ENABLED,
       checkoutEnabled: CHECKOUT_ENABLED,
-      sellerConfigured: !!PROD_TOKEN && /^\\d+$/.test(PROD_SELLER_ID),
+      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
       role: profile.role,
       isVerifiedEmail: !!authUser.email_confirmed_at,
       administrativeStatus: profile.access_status,
