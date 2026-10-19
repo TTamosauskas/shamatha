@@ -111,3 +111,22 @@ test("invalid timestamps fail closed",()=>{
  const input=sample();input.checkedAt="2026-11-19";
  assert.throws(()=>verifySandboxInvoices(input),/INVALID_CHECK_TIME/);
 });
+
+test("fractional amount that rounds to R$180 is rejected",()=>{
+ const a=sample();a.invoiceSearch.results[0].transaction_amount=180.004;
+ assert.throws(()=>verifySandboxInvoices(a),/INVOICE_MISMATCH/);
+ const b=sample();b.paymentsById["185024682360"].transaction_amount=180.004;
+ assert.throws(()=>verifySandboxInvoices(b),/PAYMENT_MISMATCH/);
+});
+test("invoice not processed cannot pass approval despite approved payment",()=>{
+ const input=sample();input.invoiceSearch.results[0].status="scheduled";
+ const output=verifySandboxInvoices(input);
+ assert.equal(output.rows[0].payment_approved_verified,false);
+});
+test("a payment cannot back two distinct invoice IDs",()=>{
+ const input=sample();
+ const other=structuredClone(input.invoiceSearch.results[0]);other.id=7033097181;
+ input.invoiceSearch.results.push(other);
+ input.invoiceSearch.paging.total=2;
+ assert.throws(()=>verifySandboxInvoices(input),/PAYMENT_REUSED_ACROSS_INVOICES/);
+});
