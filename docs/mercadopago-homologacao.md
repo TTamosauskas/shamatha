@@ -1,6 +1,6 @@
 # Mercado Pago no Shamatha — homologacao isolada
 
-Status: codigo de preparacao. **Nao integrado ao cadastro e nao habilitado em producao.**
+Status em 19/10/2026: schema preparatorio aplicado ao Supabase; Edge Function de teste publicada com JWT obrigatório, mas CRIACAO DE ASSINATURA DESABILITADA por falta de habilitacao e credencial. Site, cadastro e acesso antigos intactos. PR ainda em rascunho, sem merge.
 
 ## Regras aprovadas
 - Assinatura: R$ 180,00 BRL, uma vez por mes.
@@ -10,7 +10,7 @@ Status: codigo de preparacao. **Nao integrado ao cadastro e nao habilitado em pr
 - Progresso e conteudo nao serao apagados quando um pagamento falhar.
 
 ## Arquitetura preparatoria nesta branch
-- Migration: `supabase/migrations/20261019160000_billing_sandbox_foundation.sql`.
+- Migration: `supabase/migrations/20261019172827_billing_sandbox_foundation.sql`.
 - Edge Function: `supabase/functions/shamatha-mp-sandbox/index.ts`.
 - Pagina interna (apenas para editor principal): `billing-sandbox.html`.
 - Nao foram modificados login, autorizacao, RLS das tabelas antigas ou UI de usuarios.
@@ -32,17 +32,16 @@ real e criada pela migracao. Nao aplicar a migracao para outros projetos sem rev
 5. Nao envie tokens ou senhas no chat e nao adicione tokens ao repositorio.
 
 ## Preparacao Supabase, SOMENTE apos revisao da branch
-1. Confirmar o projeto `zglitbtwzntpchzhrdcy` e fazer backup do schema.
-2. Aplicar a migration preparatoria da branch. Conferir RLS e as novas tabelas.
-   Ainda nao ativar qualquer policy financeira de leitura do conteudo.
-3. Fazer deploy da Edge Function `shamatha-mp-sandbox` com `verify_jwt=true`.
-4. Em Edge Functions > Secrets, adicionar:
+1. FEITO: projeto `zglitbtwzntpchzhrdcy` confirmado; tabelas de billing criadas sem modificar policies existentes, via migration registrada como `20261019172827_billing_sandbox_foundation`.
+2. FEITO: RLS conferida; auditoria apontou duas tabelas RLS sem policies de leitura, deliberadamente inacessiveis ao browser.
+3. FEITO: deploy da Edge Function `shamatha-mp-sandbox` com `verify_jwt=true` (status ACTIVE).
+4. PENDENTE, a cargo do titular: em Edge Functions > Secrets, adicionar:
    - `SHAMATHA_MP_SANDBOX_SELLER_TOKEN`: access token da CONTA FICTICIA vendedora.
    - `SHAMATHA_MP_SANDBOX_CREATE_ENABLED`: manter como `false` ate teste autorizado.
-5. Verificar GET autenticado da funcao como editor principal, que deve retornar
+5. PENDENTE: verificar GET autenticado da funcao como editor principal, que deve retornar
    `productionBillingEnabled:false`, valor 18000 (centavos), e `enabled:false`.
-6. Somente com tudo pronto, alterar `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=true`.
-7. Abrir `billing-sandbox.html` estando logado como editor principal, verificar
+6. Somente depois da validacao do comprador e vendedor ficticios, alterar `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=true`.
+7. A pagina `billing-sandbox.html` so sera acessivel pelo GitHub Pages depois de publicacao controlada do frontend de homologacao; NAO integrar o PR automaticamente. Quando disponibilizada, abrir estando logado como editor principal, verificar
    a configuracao, informar comprador ficticio e criar checkout de teste.
 
 ## Salvaguardas
@@ -76,3 +75,19 @@ real e criada pela migracao. Nao aplicar a migracao para outros projetos sem rev
 ATENCAO: A documentacao de Webhooks de Assinaturas indica excecao na
 configuracao via painel; verificar a configuracao especifica antes da fase seguinte:
 https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
+
+## Alerta de credencial para assinatura Mercado Pago
+
+Para o caso especifico **Assinatura sem plano, status pending**, o Mercado Pago orienta usar o Access Token da aba **Credenciais de producao da aplicacao criada DENTRO DA CONTA FICTICIA VENDEDORA**. Isso nao equivale ao token da conta comercial verdadeira, que jamais deve ser usado nesta etapa. Se a aplicacao foi criada apenas na conta comercial verdadeira, entrar na conta ficticia vendedora e criar outra aplicacao de teste.
+
+Fonte: https://www.mercadopago.com.br/developers/pt/news/2023/11/16/Questions-on-how-to-test-your-integration--
+
+Salvar secretos por https://supabase.com/dashboard/project/zglitbtwzntpchzhrdcy/settings/functions (ou projeto > Edge Functions > Secrets); nao compartilhar valor no chat ou em commits. A flag `SHAMATHA_MP_SANDBOX_CREATE_ENABLED` deve permanecer `false` ate a validacao inicial.
+
+## Verificacao apos instalacao preparatoria
+
+- `profiles`: 2 linhas; `stages`: 18 linhas.
+- `billing_subscriptions`: 0 linhas; `billing_sandbox_attempts`: 0 linhas.
+- `shamatha-mp-sandbox`: publicada, `verify_jwt: true`.
+- Relatorio Supabase Security Advisor: `rls_enabled_no_policy` INFO nas tabelas internas `billing_sandbox_attempts` e `billing_webhook_events`, de forma intencional. Outros alertas sobre `pg_net` no schema public e Leaked Password Protection nao pertencem a esta integracao e devem ser avaliados separadamente.
+- Nao houve teste de checkout nem chamada autenticada ainda.
