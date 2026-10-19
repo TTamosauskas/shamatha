@@ -601,7 +601,8 @@
   function mediaMarkup(url, videoLimitSeconds = null) {
     if (!url) return '<div class="media-empty">O editor ainda está configurando o vídeo desta etapa.</div>';
     const youtubeId = extractYouTubeId(url);
-    if (youtubeId) return `<div class="video-frame"><iframe src="https://${videoLimitSeconds ? "www.youtube.com" : "www.youtube-nocookie.com"}/embed/${encodeURIComponent(youtubeId)}?rel=0&playsinline=1${videoLimitSeconds ? `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : ""}" title="Vídeo da etapa" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+    if (youtubeId && Number(videoLimitSeconds) > 0) return `<div class="video-frame"><div class="shamatha-youtube-player" data-youtube-id="${escapeHtml(youtubeId)}"></div></div>`;
+    if (youtubeId) return `<div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0&playsinline=1" title="Vídeo da etapa" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
     if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) return `<div class="video-frame"><video controls playsinline preload="metadata" src="${escapeHtml(url)}"></video></div>`;
     return `<div class="video-frame"><iframe src="${escapeHtml(url)}" title="Vídeo da etapa" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
   }
