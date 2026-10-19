@@ -102,3 +102,13 @@ A funcao `shamatha-mp-sandbox` agora verifica a identidade da conta que emitiu o
 Deploy do painel: `verify_jwt=false` para permitir carregar somente o HTML, mas nenhuma operacao de conta/cobranca eh feita nesse endpoint; todas as verificacoes e criacoes passam pela funcao `shamatha-mp-sandbox` (JWT exigido e verificacao de editor principal). Login acontece diretamente via Supabase Auth e tokens nao sao persistidos.
 
 ATENCAO: a pagina e a funcao estao implantadas, mas nao houve validacao interativa com um usuario autenticado nem chamada de criacao; o navegador ainda precisa confirmar o acesso.
+
+## Correcao de exibicao do HTML — 19/10/2026
+
+**Nao use o endereco da Edge Function `shamatha-mp-test-ui` como pagina.** Supabase Edge Functions no dominio padrao `supabase.co` convertem HTML para `text/plain`; a resposta de GET foi substituida por uma explicacao legivel.
+
+A interface interativa deve ser hospedada em GitHub Pages, na pagina separada `billing-sandbox.html` preparada em **PR #50**: https://github.com/TTamosauskas/shamatha/pull/50. A PR #50 contem APENAS a pagina, sem alterar o app ou ativar pagamento. O futuro endereco, disponivel somente apos merge autorizado, eh: https://ttamosauskas.github.io/shamatha/billing-sandbox.html .
+
+Ao publicar, usar o navegador nessa URL, entrar como editor principal, verificar vendedor, e seguir o roteiro de homologacao. Mantenha `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=false` ate a comprovacao de que o ID e da conta ficticia vendedora.
+
+Fonte: https://supabase.com/docs/guides/functions/http-methods
