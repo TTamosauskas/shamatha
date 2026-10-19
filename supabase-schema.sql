@@ -25,6 +25,7 @@ create table if not exists public.stages (
   deadline_days smallint not null default 7 check (deadline_days between 1 and 365),
   min_session_seconds integer not null default 300 check (min_session_seconds between 0 and 86400),
   video_url text not null default '',
+  video_limit_seconds integer check (video_limit_seconds is null or video_limit_seconds between 1 and 86400),
   audio_url text not null default '',
   audio_path text not null default '',
   audio_name text not null default '',
