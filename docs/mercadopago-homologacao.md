@@ -1,6 +1,10 @@
 # Mercado Pago no Shamatha — homologacao isolada
 
-Status em 19/10/2026: schema preparatorio aplicado ao Supabase; Edge Function de teste publicada com JWT obrigatório, mas CRIACAO DE ASSINATURA DESABILITADA por falta de habilitacao e credencial. Site, cadastro e acesso antigos intactos. PR ainda em rascunho, sem merge.
+**Atualizacao em 19/10/2026:** primeiro checkout ficticio concluido pelo comprador de teste com saldo em conta. Painel autenticado confirmou assinatura `authorized`, **1 fatura** e pagamento de **R$ 180 aprovado e validado via API do Mercado Pago** para a assinatura `c5b3cfd34ca740cb8d1b7687c5ad13b2`. Vendedor de teste `3778352536`. Titular informou ter voltado `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=false`. **Nenhum acesso ou cobranca real foi ativado.** PR continua draft, sem merge.
+
+**Atenção:** o desligamento da flag impede novos testes de criacao, mas nao cancela a assinatura ficticia ja autorizada; encerrá-la depois dos testes no Mercado Pago. O estado local de `billing_sandbox_attempts` documenta tentativa `created`, e nao constitui livro de pagamentos reconciliado. **Para proximas fases:** `docs/mercadopago-proximas-fases.md`.
+
+**Registro historico abaixo:** o passo a passo inicial contem tarefas anteriormente pendentes, ja realizadas, e serve apenas como trilha de homologacao.
 
 ## Regras aprovadas
 - Assinatura: R$ 180,00 BRL, uma vez por mes.
