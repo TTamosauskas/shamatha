@@ -22,8 +22,9 @@
   function attach(container, limitValue) {
     const limit = Number(limitValue);
     if (!Number.isFinite(limit) || limit <= 0) return;
-    const iframe = container.querySelector('.video-frame iframe[src*="youtube-nocookie.com"]');
+    const iframe = container.querySelector('.video-frame iframe[src*="youtube.com/embed/"]');
     if (!iframe) return;
+    if (!iframe.id) iframe.id = 'shamatha-youtube-' + Math.random().toString(36).slice(2);
     const info = document.createElement('div');
     info.className = 'video-limit-info';
     info.textContent = 'Este vídeo será pausado e reiniciado em ' +
@@ -34,7 +35,7 @@
       let timer = null;
       let resetting = false;
       const stopChecking = () => { if (timer !== null) clearInterval(timer); timer = null; };
-      const player = new YT.Player(iframe, {
+      const player = new YT.Player(iframe.id, {
         events: {
           onStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING) {
