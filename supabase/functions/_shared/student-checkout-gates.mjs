@@ -18,6 +18,9 @@ export function checkStudentCheckoutGate({
   if (role !== 'student') return { allowed: false, reason: 'STUDENT_REQUIRED' };
   if (isVerifiedEmail !== true) return { allowed: false, reason: 'EMAIL_NOT_CONFIRMED' };
   if (administrativeStatus === 'suspended') return { allowed: false, reason: 'ACCOUNT_SUSPENDED' };
+  if (administrativeStatus !== 'approved' && administrativeStatus !== 'pending') {
+    return { allowed: false, reason: 'ACCOUNT_STATUS_UNRECOGNIZED' };
+  }
   if (isExempt === true) return { allowed: false, reason: 'ALREADY_EXEMPT' };
   if (hasExistingSubscription === true) return { allowed: false, reason: 'EXISTING_SUBSCRIPTION' };
   return { allowed: true, reason: 'ELIGIBLE_FOR_CHECKOUT_ONLY' };
