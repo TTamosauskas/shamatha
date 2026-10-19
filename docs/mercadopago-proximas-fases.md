@@ -170,6 +170,35 @@ Fontes:
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/subscription-management
 - https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
 
+## Auditoria de ciclo real informado pelo vendedor ficticio — 19/10/2026
+
+**Evidencia obtida apos publicacao do PR #54:** o editor principal consultou a fatura existente e compartilhou estes campos do Mercado Pago:
+
+| Campo | UTC |
+|---|---|
+| Criacao da assinatura | `2026-10-19T18:21:38.000Z` |
+| Inicio configurado de recorrencia | `2026-10-19T18:21:38.000Z` |
+| Fim configurado da recorrencia | ausente |
+| Primeiro debito | `2026-10-19T18:22:38.000Z` |
+| Aprovacao da primeira fatura | `2026-10-19T18:22:39.000Z` |
+| Proxima cobranca programada | `2026-11-19T18:22:38.000Z` |
+
+A proxima cobranca programada ocorre **exatamente um mes calendárico apos a data de debito**. Essa coincidencia valida a consistencia da cadencia deste exemplo, mas nao e um campo contratual `paid_through`. O Mercado Pago descreve `next_payment_date` como proxima cobranca e `authorized_payments` como faturas/parcelas; nao documenta `next_payment_date` como data garantida de liberacao/bloqueio de acesso. O pagamento foi aprovado um segundo apos o debito; para futura implementacao deve haver decisao explicita sobre inicio da cobertura (ciclo agendado versus momento da aprovacao), efeitos de aprovacao tardia e cancelamento.
+
+**Implementacao somente de testes:**
+- `supabase/functions/_shared/mp-billing-cycle-audit.mjs` confere se uma fatura de R$ 180 aprovada pertence a assinatura mensal esperada e se `next_payment_date` coincide com o calendario UTC do debito. Se faltar data, houver divergencia, valor/status incorreto ou aprovacao tardia apos o proximo ciclo, devolve `needs_review` ou `billing_schedule_mismatch`.
+- A auditoria retorna `candidateCycleStart` e `candidateCycleEnd` somente como datas **candidatas para revisao**, mantendo sempre `coveragePeriodVerified=false`, `paidThrough=null`, `grantsStudentAccess=false`.
+- **16 testes** locais executados do arquivo `tests/mp-billing-cycle-audit.test.mjs` passaram, incluindo os campos do caso ficticio real, meses com 28, 29, 30 e 31 dias, passagem de ano, fuso UTC-3, data faltante, assinatura errada e cobranca recusada.
+- O motor puro `billing-entitlement.mjs` agora exige a confirmacao separada `coveragePeriodVerified=true` **alem** de `verifiedByProvider=true` antes de considerar um intervalo como pago. Sem ela, o pagamento mesmo aprovado e a data prevista da proxima cobranca nao liberam acesso. **24 testes** locais de `tests/billing-entitlement.test.mjs` passaram.
+- Nenhum motor foi integrado a `private.has_content_access()`, nenhum aluno foi alterado, e nao houve novo deploy de cobranca por causa destes testes.
+
+**Politica de produto a confirmar antes da etapa de acesso:** se um aluno cancelar uma assinatura depois de pagar, conserva acesso ate o encerramento do periodo ja pago? A implementacao sintetica atual assume *sim*, mas a regra ainda precisa de aprovacao. Para vencimento, a regra acordada segue zero dias extras.
+
+Referencias:
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-preapproval/get
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/resources/glossary
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
