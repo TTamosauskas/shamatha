@@ -2,7 +2,9 @@
 
 **Atualizacao em 19/10/2026:** primeiro checkout ficticio concluido pelo comprador de teste com saldo em conta. Painel autenticado confirmou assinatura `authorized`, **1 fatura** e pagamento de **R$ 180 aprovado e validado via API do Mercado Pago** para a assinatura `c5b3cfd34ca740cb8d1b7687c5ad13b2`. Vendedor de teste `3778352536`. Titular informou ter voltado `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=false`. **Nenhum acesso ou cobranca real foi ativado.** PR continua draft, sem merge.
 
-**Atenção:** o desligamento da flag impede novos testes de criacao, mas nao cancela a assinatura ficticia ja autorizada; encerrá-la depois dos testes no Mercado Pago. O estado local de `billing_sandbox_attempts` documenta tentativa `created`, e nao constitui livro de pagamentos reconciliado. **Para proximas fases:** `docs/mercadopago-proximas-fases.md`.
+**Conciliação manual validada em 19/10/2026:** painel `Conciliar faturas de teste no Supabase` confirmou 1 fatura e 1 pagamento aprovado. Consulta direta ao banco comprovou `billing_sandbox_invoice_observations` com fatura `7033097180`, pagamento `185024682360`, `payment_approved_verified=true`, valor R$ 180,00, com `billing_subscriptions=0` e `billing_payments=0`. A função v2 corrigiu uma chamada antiga que devolvia HTTP 400. A conciliação foi apenas na tabela privada de homologação e não altera usuários.
+
+**Atenção:** o desligamento da flag impede novos testes de criacao, mas nao cancela a assinatura ficticia ja autorizada; encerrá-la depois dos testes no Mercado Pago. O estado local de `billing_sandbox_attempts` documenta a criacao do checkout; o livro de homologacao fica na tabela `billing_sandbox_invoice_observations`. Ainda falta testar conciliacao idempotente, renovacao e notificacoes. **Para proximas fases:** `docs/mercadopago-proximas-fases.md`.
 
 **Registro historico abaixo:** o passo a passo inicial contem tarefas anteriormente pendentes, ja realizadas, e serve apenas como trilha de homologacao.
 
