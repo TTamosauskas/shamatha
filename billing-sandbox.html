@@ -25,7 +25,7 @@ button:disabled {opacity:.6;cursor:wait}
 </head>
 <body><main>
 <h1>Homologação Mercado Pago — Shamatha</h1>
-<small>Versão de diagnóstico: 2026-10-19.3</small>
+<small>Versão de homologação: 2026-10-19.4</small>
 <p>Somente para o editor principal. Esta página não altera o acesso dos alunos nem ativa cobranças de produção.</p>
 <div class="notice"><strong>Mensalidade de teste:</strong> R$ 180,00. Utilize apenas a conta vendedora fictícia e o comprador de teste do Mercado Pago.</div>
 <form id="login">
@@ -39,6 +39,8 @@ button:disabled {opacity:.6;cursor:wait}
 <div id="subscriptionSummary" class="notice" role="status" style="white-space:pre-line"><strong>RESULTADO DA ASSINATURA DE TESTE</strong>
 Aguardando consulta autenticada ao Mercado Pago.</div>
 <button id="recheck" type="button">Verificar novamente</button>
+<button id="reconcile" type="button">Conciliar faturas de teste no Supabase</button>
+<p id="reconcileResult" class="notice" role="status">A conciliação não foi executada nesta sessão. Esta ação apenas verifica e registra cobranças da conta fictícia; não libera alunos.</p>
 <form id="checkout" class="hidden">
 <label>ID da conta VENDEDOR DE TESTE<input id="sellerId" type="text" inputmode="numeric" pattern="[0-9]+" required></label>
 <small>Confira o ID da conta fictícia vendedora em Mercado Pago Developers → Contas de teste. O ID deve coincidir com o verificado pelo servidor.</small>
@@ -60,6 +62,7 @@ const status=byId("status");
 let token="";
 let currentSellerId="";
 const endpoint=base+"/functions/v1/shamatha-mp-sandbox";
+const reconcileEndpoint=base+"/functions/v1/shamatha-mp-sandbox-reconcile";
 function message(value){status.textContent=value;}
 async function api(method,body){
  if(!token)throw new Error("Sessão do editor ausente.");
@@ -143,6 +146,34 @@ byId("recheck").addEventListener("click",async function(){
  byId("recheck").disabled=true;
  try{await check();}catch(err){message(err.message||"Falha na verificação.");}
  finally{byId("recheck").disabled=false;}
+});
+byId("reconcile").addEventListener("click",async function(){
+ const button=byId("reconcile");
+ button.disabled=true;
+ const display=byId("reconcileResult");
+ display.textContent="Consultando assinatura, faturas e pagamentos na API do Mercado Pago…";
+ try {
+   if(!token)throw new Error("Entre como editor principal antes de conciliar.");
+   const response=await fetch(reconcileEndpoint,{
+     method:"POST",
+     headers:{"Authorization":"Bearer "+token,"apikey":publicKey,"Content-Type":"application/json"},
+     body:JSON.stringify({mode:"sandbox-reconcile"})
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(data.error||"HTTP "+response.status);
+   const item=Array.isArray(data.results)?data.results[0]:null;
+   if(!item){display.textContent="Nenhuma tentativa de assinatura fictícia para conciliar.";return;}
+   display.textContent="Conciliação concluída. "+
+     "Assinatura: "+item.subscriptionStatus+". "+
+     "Faturas registradas/verificadas: "+item.observedInvoices+". "+
+     "Pagamentos aprovados confirmados: "+item.approvedPaymentsVerified+". "+
+     "Dados gravados apenas na tabela privada de homologação. "+
+     "Nenhuma alteração no acesso dos alunos.";
+   await check();
+ }catch(err){
+   display.textContent="Conciliação não concluída: "+(err.message||"erro desconhecido")+
+     ". Nenhuma nova cobrança foi criada.";
+ }finally{button.disabled=false;}
 });
 byId("checkout").addEventListener("submit",async function(ev){
  ev.preventDefault();
