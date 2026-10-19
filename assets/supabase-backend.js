@@ -69,6 +69,7 @@
       deadlineDays: Number(row.deadline_days || 7),
       minSessionSeconds: Number(row.min_session_seconds || 0),
       videoUrl: row.video_url || '',
+      videoLimitSeconds: row.video_limit_seconds ?? null,
       audioUrl: row.audio_url || ''
     };
   }
@@ -83,6 +84,7 @@
       deadline_days: clampInt(body.deadlineDays, 1, 365, 7),
       min_session_seconds: clampInt(body.minSessionSeconds, 0, 86400, 300),
       video_url: safeUrl(body.videoUrl),
+      video_limit_seconds: body.videoLimitSeconds == null ? null : clampInt(body.videoLimitSeconds, 1, 86400, 1),
       audio_url: safeUrl(body.audioUrl),
       updated_at: new Date().toISOString()
     };
