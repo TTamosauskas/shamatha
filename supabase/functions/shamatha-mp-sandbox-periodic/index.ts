@@ -60,7 +60,10 @@ async function reconcile(attempt:{
   const subscription=await getProvider(MP_URL+"/preapproval/"+encodeURIComponent(attempt.mp_preapproval_id),"subscription");
   const invoices=await getProvider(MP_URL+"/authorized_payments/search?preapproval_id="+
     encodeURIComponent(attempt.mp_preapproval_id)+"&limit=10","invoices");
-  if(!Array.isArray(invoices.results))fail("INVALID_INVOICES");
+  if(!Array.isArray(invoices.results) || invoices.results.length>10 ||
+     Number(invoices.paging?.total??invoices.results.length)>10){
+    fail("INVOICE_PAGE_LIMIT_EXCEEDED");
+  }
   const paymentsById:Record<string,unknown>={};
   for(const invoice of invoices.results){
     const paymentId=String(invoice?.payment?.id??"");
