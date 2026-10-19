@@ -250,6 +250,19 @@ Validação depois de merge explícito do PR #56: abrir manualmente `https://tta
 
 **Mantenha separado:** cadastro antigo não redireciona automaticamente ao pagamento; links da PR #57 levam apenas à tela de consulta. Entrega de checkout ativo continua pendente de assinatura/autorização de webhook, reconciliação automática e revisão de RLS de conteúdo.
 
+## Fase 3 — conciliação periódica de homologação preparada, NÃO ativada
+
+Em 19/10/2026, após a publicação do **PR #57** pelo proprietário (GitHub Pages com deploy bem-sucedido), a próxima parte da Fase 3 foi adicionada ao **PR #49 (draft)**:
+
+- Novo auditor puro `supabase/functions/_shared/mercadopago-sandbox-invoices.mjs` e `tests/mercadopago-sandbox-invoices.test.mjs`: **18 testes sintéticos executados, 18 aprovados**. Rejeita discrepâncias entre assinatura, referência externa, vendedor fictício 3778352536, e-mail quando disponível, valor/moeda, ID de fatura, ID de pagamento, estados de fatura e pagamento, e lotes acima de 10 faturas. Nenhum cálculo de período pago.
+- Função `supabase/functions/shamatha-mp-sandbox-periodic/index.ts`: código de conciliação agendável da conta fictícia, **somente no PR #49**. Não faz POST de pagamento, criação ou cancelamento de assinatura. Lê a API MP, verifica cada item e atualiza apenas `billing_sandbox_invoice_observations` e `billing_sandbox_attempts.last_checked_at`. Reutiliza IDs únicos para evitar duplicação. Não altera `billing_payments`, `billing_subscriptions`, `profiles` ou RLS.
+- A função é protegida por segredo interno exclusivo `SHAMATHA_MP_SANDBOX_CRON_SECRET` e trava `SHAMATHA_MP_SANDBOX_AUTO_RECONCILE_ENABLED`, desligada por padrão. **Nenhuma senha cron foi criada/configurada; a função NÃO foi implantada.**
+- `pg_cron` e `pg_net` já estão habilitados neste Supabase, mas **nenhum job `shamatha-sandbox-invoice-reconcile` foi cadastrado**. O acionamento permanece manual através do painel de homologação.
+- O documento `docs/mercadopago-reconciliacao-automatica.md` registra limites e sequência futura de configuração do segredo Vault/Edge Function, monitoramento e cron.
+- O Webhook do Mercado Pago **não foi implantado**. A documentação oficial de Assinaturas não permite configuração convencional via `Suas integrações`; validar o mecanismo de envio para o fluxo real `POST /preapproval` antes de colocar endpoint público. A verificação periódica será o plano de recuperação de notificações perdidas, e não prova de `paid_through`.
+
+**Evidência de não ativação:** no banco, `billing_exemptions=2`, `billing_checkout_intents=0`, `billing_subscriptions=0`, `billing_payments=0`, `billing_webhook_events=0`, `billing_sandbox_invoice_observations=1`. Nenhum acesso foi modificado nesta fase.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
