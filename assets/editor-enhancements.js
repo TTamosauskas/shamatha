@@ -279,7 +279,7 @@
         const emailCell = row.querySelector('.user-email-cell');
         if (!emailCell) {
           const only = row.querySelector('td[colspan]');
-          if (only && only.getAttribute('colspan') !== '5') only.setAttribute('colspan', '5');
+          if (only && only.getAttribute('colspan') !== '6') only.setAttribute('colspan', '6');
           return;
         }
 

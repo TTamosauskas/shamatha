@@ -257,6 +257,24 @@
     return { ok: true, updatedAt: progress.updatedAt };
   }
 
+  // Somente apresentação de dados financeiros existentes; não autoriza conteúdo.
+  // Um 'active' armazenado sem período pago válido NÃO basta para mostrar Ativa.
+  function editorBillingStatus(userId, exemptions, subscriptions, atMillis) {
+    if (exemptions.has(userId)) return 'exempt';
+    const subscription = subscriptions.find(item =>
+      item.user_id === userId && item.environment === 'production');
+    if (!subscription) return 'pending';
+    const status = String(subscription.access_status || 'pending');
+    if (status === 'cancelled') return 'cancelled';
+    if (status === 'paused') return 'paused';
+    const paidThrough = subscription.paid_through ? Date.parse(subscription.paid_through) : NaN;
+    if (Number.isFinite(paidThrough) && paidThrough <= atMillis) return 'overdue';
+    if (status === 'active' && Number.isFinite(paidThrough) && paidThrough > atMillis) {
+      return 'active';
+    }
+    return 'pending';
+  }
+
   async function editorData() {
     const sb = getClient();
     await requireProfile({ editor: true });
@@ -268,8 +286,34 @@
     for (const result of [usersResult, stagesResult, settingsResult]) {
       if (result.error) throw new BackendError(readableError(result.error), 400, result.error);
     }
+
+    const studentIds = (usersResult.data || []).map(user => user.id);
+    let exemptionIds = new Set();
+    let subscriptionRecords = [];
+    if (studentIds.length) {
+      const [exemptionsResult, subscriptionsResult] = await Promise.all([
+        sb.from('billing_exemptions')
+          .select('user_id').in('user_id', studentIds),
+        sb.from('billing_subscriptions')
+          .select('user_id,environment,access_status,paid_through,created_at')
+          .in('user_id', studentIds)
+          .order('created_at', { ascending:false })
+      ]);
+      for (const result of [exemptionsResult, subscriptionsResult]) {
+        if (result.error) throw new BackendError('Falha ao consultar o estado das assinaturas.', 503, result.error);
+      }
+      exemptionIds = new Set((exemptionsResult.data || []).map(item => item.user_id));
+      subscriptionRecords = subscriptionsResult.data || [];
+    }
+
+    const checkedAt = Date.now();
     return {
-      users: (usersResult.data || []).map(publicUser),
+      users: (usersResult.data || []).map(profile => ({
+        ...publicUser(profile),
+        billingStatus: editorBillingStatus(profile.id, exemptionIds, subscriptionRecords, checkedAt)
+      })),
+      // Indicador apenas informativo. Não há cobrança real nem bloqueio financeiro.
+      productionBillingEnabled: false,
       stages: (stagesResult.data || []).map(stageFromRow),
       settings: settingsFromRow(settingsResult.data)
     };
