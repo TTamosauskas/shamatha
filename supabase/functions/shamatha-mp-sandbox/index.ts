@@ -52,7 +52,25 @@ async function requireOwner(req: Request) {
   return data.user.id;
 }
 
-async function createTestCheckout(editorId: string, email: string) {
+async function testSellerAccount(token: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch("https://api.mercadolibre.com/users/me", {
+      headers: { Authorization: "Bearer " + token },
+      signal: controller.signal
+    });
+    if (!response.ok) fail("Nao foi possivel verificar a conta vendedora no Mercado Pago.", 502);
+    const seller = await response.json();
+    const sellerId = String(seller?.id ?? "");
+    if (!/^\d+$/.test(sellerId)) fail("ID do vendedor ausente na resposta do Mercado Pago.", 502);
+    return sellerId;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function createTestCheckout(editorId: string, email: string, expectedSellerId: string) {
   const payerEmail = email.trim().toLowerCase();
   if (!/^[a-z0-9._%+\-]+@testuser\.com$/.test(payerEmail)) {
     fail("Use somente o e-mail da conta COMPRADOR DE TESTE do Mercado Pago (@testuser.com).");
@@ -60,6 +78,10 @@ async function createTestCheckout(editorId: string, email: string) {
   const enabled = Deno.env.get("SHAMATHA_MP_SANDBOX_CREATE_ENABLED") === "true";
   const token = Deno.env.get("SHAMATHA_MP_SANDBOX_SELLER_TOKEN") || "";
   if (!enabled || !token) fail("Homologacao desativada: credencial de teste e habilitacao sao necessarias.", 503);
+  if (!/^\d+$/.test(expectedSellerId)) fail("Confirme o ID numerico da conta vendedora FICTICIA antes do teste.");
+  const actualSellerId = await testSellerAccount(token);
+  if (actualSellerId !== expectedSellerId) fail("A credencial nao pertence ao vendedor ficticio informado. Nenhuma assinatura foi criada.", 403);
+
 
   // Reusar uma tentativa existente impede a criacao acidental de assinaturas duplicadas.
   const { data: previous, error: findError } = await admin.from("billing_sandbox_attempts")
@@ -145,17 +167,31 @@ Deno.serve(async req => {
     if (!["GET", "POST"].includes(req.method)) return json({ error: "Metodo nao permitido." }, 405);
     const editorId = await requireOwner(req);
     if (req.method === "GET") {
+      const configuredToken = Deno.env.get("SHAMATHA_MP_SANDBOX_SELLER_TOKEN") || "";
+      let sellerId: string | null = null;
+      let sellerLookupOk = false;
+      if (configuredToken) {
+        try {
+          sellerId = await testSellerAccount(configuredToken);
+          sellerLookupOk = true;
+        } catch (error) {
+          console.error("seller identification failed", String((error as Error)?.message || error));
+        }
+      }
       return json({
         sandbox: true,
+        tokenConfigured: Boolean(configuredToken),
+        sellerLookupOk, sellerId,
+        creationFlagOn: Deno.env.get("SHAMATHA_MP_SANDBOX_CREATE_ENABLED") === "true",
         enabled: Deno.env.get("SHAMATHA_MP_SANDBOX_CREATE_ENABLED") === "true" &&
-          Boolean(Deno.env.get("SHAMATHA_MP_SANDBOX_SELLER_TOKEN")),
+          Boolean(configuredToken) && sellerLookupOk,
         amountCents: 18000, currency: "BRL",
         productionBillingEnabled: false
       });
     }
     const body = await req.json().catch(() => ({}));
     if (body.mode !== "sandbox") fail("Esta funcao permite apenas mode=sandbox.");
-    return json(await createTestCheckout(editorId, String(body.payerEmail || "")));
+    return json(await createTestCheckout(editorId, String(body.payerEmail || ""), String(body.expectedSellerId || "")));
   } catch (error) {
     const status = Number((error as {status?: number})?.status || 500);
     if (status >= 500) console.error("sandbox checkout error", String((error as Error)?.message || error));
