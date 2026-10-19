@@ -148,6 +148,7 @@
       deadlineDays:Number(row.deadline_days || 7),
       minSessionSeconds:Number(row.min_session_seconds || 300),
       videoUrl:row.video_url || '',
+      videoLimitSeconds:row.video_limit_seconds ?? null,
       audioUrl:audioUrl || row.audio_url || '',
       audioPath:row.audio_path || '',
       audioName:row.audio_name || ''
@@ -218,6 +219,7 @@
         unitName:row.unit_name || 'Nova aula',
         objective:row.objective || '',
         videoUrl:row.video_url || '',
+        videoLimitSeconds:row.video_limit_seconds ?? null,
         ownAudioPath:row.audio_path || '',
         ownAudioName:row.audio_name || '',
         ownAudioUrl:directOwnAudio,
@@ -278,7 +280,7 @@
       .eq('id', authUser.id)
       .maybeSingle();
     const stagesQuery = sb.from('stages')
-      .select('number,stage_id,position,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,sessions_required,deadline_days,min_session_seconds,video_url,audio_url,audio_path,audio_name,updated_at')
+      .select('number,stage_id,position,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,sessions_required,deadline_days,min_session_seconds,video_url,video_limit_seconds,audio_url,audio_path,audio_name,updated_at')
       .order('number', { ascending:true });
     const settingsQuery = sb.from('settings')
       .select('whatsapp_phone,live_class_url')
