@@ -137,7 +137,8 @@ async function createTestCheckout(editorId: string, email: string) {
 
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-  if (req.headers.get("Origin") && req.headers.get("Origin") !== SITE_ORIGIN) {
+  const requestOrigin = req.headers.get("Origin");
+  if (requestOrigin && requestOrigin !== SITE_ORIGIN && requestOrigin !== URL_SUPABASE) {
     return json({ error: "Origem nao autorizada." }, 403);
   }
   try {
