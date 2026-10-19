@@ -2,6 +2,7 @@
 // A ativacao requer aprovacao explicita e DUAS flags de producao independentes.
 export function checkStudentCheckoutGate({
   productionEnabled = false,
+  launchApproved = false,
   checkoutEnabled = false,
   sellerConfigured = false,
   role = null,
@@ -11,6 +12,7 @@ export function checkStudentCheckoutGate({
   hasExistingSubscription = false
 } = {}) {
   if (productionEnabled !== true) return { allowed: false, reason: 'PRODUCTION_DISABLED' };
+  if (launchApproved !== true) return { allowed: false, reason: 'LAUNCH_NOT_APPROVED' };
   if (checkoutEnabled !== true) return { allowed: false, reason: 'CHECKOUT_DISABLED' };
   if (sellerConfigured !== true) return { allowed: false, reason: 'SELLER_NOT_CONFIGURED' };
   if (role !== 'student') return { allowed: false, reason: 'STUDENT_REQUIRED' };
