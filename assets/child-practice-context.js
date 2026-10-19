@@ -34,6 +34,7 @@
       unitName:child.unitName || parent.unitName || 'Aula de apoio',
       objective:child.objective || '',
       videoUrl:child.videoUrl || '',
+      videoLimitSeconds:child.videoLimitSeconds ?? null,
       audioUrl:child.audioUrl || '',
       childPractice:true,
       childStageId:child.stageId,
