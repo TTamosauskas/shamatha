@@ -212,7 +212,7 @@ Referencias:
 
 **Nomes técnicos:** no banco foram usados prefixos `billing_*` para evitar ambiguidade de tabelas; correspondem conceitualmente a `subscriptions`, `subscription_payments` e `payment_webhook_events` do plano original. Não criar tabelas duplicadas com outros nomes.
 
-**Isenção inicial aplicada diretamente ao Supabase:** migration `20261019214500_billing_existing_profiles_exemptions.sql` usou `INSERT ... SELECT FROM profiles ON CONFLICT DO NOTHING` e registrou os 2 perfis atuais (ambos editores), sem modificar `profiles` e sem ativar filtros de acesso. Não significa que todo usuário novo criado antes do go-live já estará isento: repetir o lote no momento da ativação, incluindo todos os perfis cadastrados até a data definida. A isenção persiste até decisão explícita posterior.
+**Isenção inicial aplicada diretamente ao Supabase:** migration `20261019221014_billing_existing_profiles_exemptions.sql` usou `INSERT ... SELECT FROM profiles ON CONFLICT DO NOTHING` e registrou os 2 perfis atuais (ambos editores), sem modificar `profiles` e sem ativar filtros de acesso. Não significa que todo usuário novo criado antes do go-live já estará isento: repetir o lote no momento da ativação, incluindo todos os perfis cadastrados até a data definida. A isenção persiste até decisão explícita posterior.
 
 **PR #55** altera apenas interface/backend de leitura do editor; o repositório só recebeu a proposta e não há merge autorizado. O editor atualmente lista apenas `role=student`, e o projeto ainda não tem perfis `student`; por isso a coluna pode não ter linhas para exibir hoje. Futuramente, somente períodos efetivamente pagos (com data confiável) deverão figurar como `Ativa`; não confundir estado de assinatura com estado administrativo.
 
@@ -234,7 +234,7 @@ Validação depois de merge explícito do PR #56: abrir manualmente `https://tta
 
 **PR #57 (ABERTO, SEM MERGE)** adiciona atalhos informativos para `Minha assinatura` a contas pendentes em `index.html` e a contas dentro de `app.html`. A página de destino continua só leitura, sem geração de checkout.
 
-**Estrutura de checkout de alunos reservada no banco:** migration `20261019225500_billing_checkout_intents.sql` aplicada ao Supabase; tabela `billing_checkout_intents` com RLS e **nenhuma policy de cliente**, chave de idempotência, e índice único para uma tentativa não-finalizada por `(user_id,environment)`. Não cria cobrança ou muda acesso.
+**Estrutura de checkout de alunos reservada no banco:** migration `20261019222450_billing_checkout_intents.sql` aplicada ao Supabase; tabela `billing_checkout_intents` com RLS e **nenhuma policy de cliente**, chave de idempotência, e índice único para uma tentativa não-finalizada por `(user_id,environment)`. Não cria cobrança ou muda acesso.
 
 **Código preparatório criado somente no PR #49 (DRAFT)**:
 - `supabase/functions/shamatha-create-subscription/index.ts` (NÃO IMPLANTADO no Supabase) será futuramente o único ponto servidor para criar assinatura de aluno;
