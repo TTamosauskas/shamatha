@@ -206,14 +206,15 @@ async function startCheckout(userId: string, userEmail: string) {
       halt("SUBSCRIPTION_LINK_REQUIRES_REVIEW", 502);
     }
 
-    const { error: savedError } = await admin.from("billing_checkout_intents").update({
+    const { data: savedIntent, error: savedError } = await admin.from("billing_checkout_intents").update({
       state: "created",
       mp_preapproval_id: remote.id,
       checkout_url: remote.init_point,
       seller_id: PROD_SELLER_ID,
       updated_at: new Date().toISOString()
-    }).eq("id", intent.id).eq("state", "creating");
-    if (savedError) {
+    }).eq("id", intent.id).eq("state", "creating")
+      .select("id").maybeSingle();
+    if (savedError || !savedIntent) {
       errorCode = "LOCAL_CHECKOUT_SAVE_FAILED";
       halt("CHECKOUT_SAVE_REQUIRES_REVIEW", 502);
     }
