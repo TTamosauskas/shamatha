@@ -12,7 +12,7 @@ Status em 19/10/2026: schema preparatorio aplicado ao Supabase; Edge Function de
 ## Arquitetura preparatoria nesta branch
 - Migration: `supabase/migrations/20261019172827_billing_sandbox_foundation.sql`.
 - Edge Function: `supabase/functions/shamatha-mp-sandbox/index.ts`.
-- Pagina interna (apenas para editor principal): `billing-sandbox.html`.
+- Pagina de homologacao servida pelo Supabase: `supabase/functions/shamatha-mp-test-ui/index.ts` (login efemero do editor, sem armazenar tokens).
 - Nao foram modificados login, autorizacao, RLS das tabelas antigas ou UI de usuarios.
 
 O SQL adiciona tabelas com RLS, sem escrita direta pelo cliente, mas NAO muda nenhuma
@@ -41,8 +41,9 @@ real e criada pela migracao. Nao aplicar a migracao para outros projetos sem rev
 5. PENDENTE: verificar GET autenticado da funcao como editor principal, que deve retornar
    `productionBillingEnabled:false`, valor 18000 (centavos), e `enabled:false`.
 6. Somente depois da validacao do comprador e vendedor ficticios, alterar `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=true`.
-7. A pagina `billing-sandbox.html` so sera acessivel pelo GitHub Pages depois de publicacao controlada do frontend de homologacao; NAO integrar o PR automaticamente. Quando disponibilizada, abrir estando logado como editor principal, verificar
-   a configuracao, informar comprador ficticio e criar checkout de teste.
+7. FEITO: `shamatha-mp-test-ui` publicada separadamente. Abra `https://zglitbtwzntpchzhrdcy.supabase.co/functions/v1/shamatha-mp-test-ui`; autentique-se como editor principal do Shamatha. A senha sera enviada apenas ao Supabase Auth e o token so sera mantido em memoria nesta pagina. Verifique se o Access Token esta presente e confira se o ID do vendedor retornado eh o mesmo da conta vendedora de teste no Mercado Pago.
+8. Depois de verificar os IDs e credenciais, altere `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=true` no Supabase. Volte a pagina de homologacao, clique Verificar novamente e informe o e-mail comprador ficticio para criar UM link de teste.
+9. Apos teste, volte `SHAMATHA_MP_SANDBOX_CREATE_ENABLED=false`. Nao use cartao real.
 
 ## Salvaguardas
 - Test checkout exige JWT e editor principal aprovado.
@@ -91,3 +92,13 @@ Salvar secretos por https://supabase.com/dashboard/project/zglitbtwzntpchzhrdcy/
 - `shamatha-mp-sandbox`: publicada, `verify_jwt: true`.
 - Relatorio Supabase Security Advisor: `rls_enabled_no_policy` INFO nas tabelas internas `billing_sandbox_attempts` e `billing_webhook_events`, de forma intencional. Outros alertas sobre `pg_net` no schema public e Leaked Password Protection nao pertencem a esta integracao e devem ser avaliados separadamente.
 - Nao houve teste de checkout nem chamada autenticada ainda.
+
+## Adicao ao fluxo de homologacao — checagem do vendedor
+
+A funcao `shamatha-mp-sandbox` agora verifica a identidade da conta que emitiu o Access Token pela API de leitura `/users/me`, sem revelar o token. O painel apresenta somente o ID e exige que ele seja explicitamente confirmado antes de permitir criar assinaturas. Se o ID nao corresponder ao VENDEDOR ficticio de teste (visivel no painel do Mercado Pago), PARE e confira a credencial.
+
+**Link direto:** https://zglitbtwzntpchzhrdcy.supabase.co/functions/v1/shamatha-mp-test-ui
+
+Deploy do painel: `verify_jwt=false` para permitir carregar somente o HTML, mas nenhuma operacao de conta/cobranca eh feita nesse endpoint; todas as verificacoes e criacoes passam pela funcao `shamatha-mp-sandbox` (JWT exigido e verificacao de editor principal). Login acontece diretamente via Supabase Auth e tokens nao sao persistidos.
+
+ATENCAO: a pagina e a funcao estao implantadas, mas nao houve validacao interativa com um usuario autenticado nem chamada de criacao; o navegador ainda precisa confirmar o acesso.
