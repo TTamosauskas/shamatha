@@ -263,6 +263,17 @@ Em 19/10/2026, após a publicação do **PR #57** pelo proprietário (GitHub Pag
 
 **Evidência de não ativação:** no banco, `billing_exemptions=2`, `billing_checkout_intents=0`, `billing_subscriptions=0`, `billing_payments=0`, `billing_webhook_events=0`, `billing_sandbox_invoice_observations=1`. Nenhum acesso foi modificado nesta fase.
 
+## Smoke test da rotina de conciliação periódica — execução ainda bloqueada
+
+**19/10/2026:** o proprietário mesclou o PR #58 e o GitHub Pages publicou a alteração. A função `shamatha-mp-sandbox-periodic` foi **implantada no Supabase, versão 1, `verify_jwt=true`**, mas NÃO há job financeiro agendado e NÃO foi habilitada a flag de reconciliação automática.
+
+Um HTTP POST sem Authorization, realizado uma única vez via `pg_net`, retornou **HTTP 401 / UNAUTHORIZED_NO_AUTH_HEADER**. Isso demonstra bloqueio no gateway e não valida o handler com segredo, consultas autenticadas ao MP ou gravação de faturas.
+
+- O banco mantém `2` perfis isentos, `1` fatura fictícia, `0` assinaturas e `0` pagamentos em produção; `0` eventos webhook.
+- Os nomes previstos para segredos de Cron estão ausentes do Supabase Vault. **O conector não permite configurar Secrets da Edge Function**; a configuração precisa ser feita pelo proprietário no dashboard, sem compartilhar os valores por chat/repositório.
+- `verify_jwt=true` continuará ativado até que exista e seja testada autenticação via segredo interno separado e forte, com Vault+Edge Function preparados. Somente depois alterar a política de JWT e agendar `pg_cron` em homologação.
+- O **PR #59**, aberto e sem merge, documenta precisamente a implantação bloqueada, o teste 401 e os passos restantes. O PR #49 permanece draft e NÃO deve ser mesclado por consequência.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
