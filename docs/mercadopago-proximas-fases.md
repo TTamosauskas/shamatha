@@ -218,6 +218,16 @@ Referencias:
 
 **Webhooks:** Mercado Pago explica que a configuração via `Suas integrações` não está disponível para Assinaturas; deve ser tratada na criação do pagamento. Para a assinatura `POST /preapproval` usada aqui, ainda não foi comprovado um parâmetro de URL de notificação nessa chamada. Não inventar `notification_url`; se a forma suportada depender de API distinta, adaptar com teste fictício. A checagem periódica automatizada com Supabase Cron + `pg_net` e segredo no Vault é documentada, mas ainda não foi instalada.
 
+## Fase 4 — prévia de Minha assinatura preparada, sem integração de cobrança
+
+Após o merge do PR #55 pelo proprietário (GitHub Pages publicado com sucesso), a tabela do editor contém a coluna `Assinatura` e lê as estruturas financeiras com RLS, independentemente do Estado administrativo.
+
+O novo **PR #56** (ABERTO, NÃO MESCLADO) contém a página `minha-assinatura.html` como prévia de consulta exclusivamente do usuário autenticado. Ela consulta `profiles`, `billing_exemptions` e `billing_subscriptions` sob RLS, exibe Isento / Ativa / Pendente / Atrasada / Pausada / Cancelada, o estado administrativo e `paid_through` quando registrado. A mensalidade prevista aparece como R$ 180, mas a interface avisa que a cobrança real está desligada; o botão de pagamento/regularização está **desabilitado**. O cadastro/login principal ainda **não redireciona** para esta página.
+
+A classificação de exibição passou em **13 testes unitários sintéticos**; nenhum login de aluno real foi usado. Isto **não implementa** checkout do estudante, criação da assinatura, recebimento de webhook, aprovação de pagamento ou proteção RLS do conteúdo. Não publicar/ativar a cobrança real ou o redirecionamento de cadastro como consequência do PR.
+
+Validação depois de merge explícito do PR #56: abrir manualmente `https://ttamosauskas.github.io/shamatha/minha-assinatura.html` com sessão de teste e verificar texto/modal de pagamento indisponível. Como há atualmente apenas dois perfis de editor, o teste de apresentação com aluno autenticado exigiria uma conta de aluno de teste separada, que não foi criada.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
