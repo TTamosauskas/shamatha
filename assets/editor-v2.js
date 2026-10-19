@@ -202,7 +202,10 @@ function renderStages(openStage = null) {
           <div class="field"><label>Prazo do ciclo (dias)</label><input name="deadlineDays" type="number" min="1" max="365" value="${stage.deadlineDays}" required></div>
         </div>
         <div class="field"><label>Objetivo / apresentação</label><textarea name="objective" maxlength="1200">${esc(stage.objective)}</textarea></div>
-        <div class="field"><label>URL do vídeo</label><input name="videoUrl" type="url" value="${esc(stage.videoUrl)}" placeholder="https://www.youtube.com/watch?v=... ou URL de MP4"></div>
+        <div class="video-limit-grid">
+          <div class="field"><label>URL do vídeo</label><input name="videoUrl" type="url" value="${esc(stage.videoUrl)}" placeholder="https://www.youtube.com/watch?v=..."></div>
+          <div class="field"><label>Tempo limite (opcional)</label><input name="videoLimit" type="text" inputmode="numeric" maxlength="8" pattern="[0-9]+:[0-5][0-9]" title="Use minutos:segundos, por exemplo 0:20" value="${stage.videoLimitSeconds ? Math.floor(stage.videoLimitSeconds / 60) + ':' + String(stage.videoLimitSeconds % 60).padStart(2,'0') : ''}" placeholder="0:20"></div>
+        </div>
         ${audioBlock(stage)}
         <div class="stage-save-row"><button class="btn primary" type="submit">Salvar etapa ${stage.number}</button></div>
         <div class="status hidden stage-status"></div>
@@ -225,6 +228,21 @@ function renderStages(openStage = null) {
       payload.sessionsRequired = Number(payload.sessionsRequired);
       payload.deadlineDays = Number(payload.deadlineDays);
       payload.minSessionSeconds = GLOBAL_MIN_SESSION_SECONDS;
+       const limitText = String(payload.videoLimit || '').trim();
+       if (limitText && !/^[0-9]+:[0-5][0-9]$/.test(limitText)) {
+         const status = form.querySelector('.stage-status');
+         status.textContent = 'Tempo inválido: use minutos:segundos, como 0:20.';
+         status.className = 'status bad stage-status';
+         return;
+       }
+       payload.videoLimitSeconds = limitText ? (Number(limitText.split(':')[0]) * 60 + Number(limitText.split(':')[1])) : null;
+       if (limitText && (payload.videoLimitSeconds < 1 || payload.videoLimitSeconds > 86400)) {
+         const status = form.querySelector('.stage-status');
+         status.textContent = 'Informe um tempo entre 0:01 e 1440:00.';
+         status.className = 'status bad stage-status';
+         return;
+       }
+       delete payload.videoLimit;
       const status = form.querySelector('.stage-status');
       try {
         const data = await api(`/api/editor/stages/${number}`, { method:'PUT', body:JSON.stringify(payload) });
