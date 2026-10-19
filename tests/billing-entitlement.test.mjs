@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { evaluateBillingAccess } from '../supabase/functions/_shared/billing-entitlement.mjs';
 
 const period = (overrides = {}) => ({
-  subscriptionId: 'sandbox-sub-1', verifiedByProvider: true, status: 'approved',
+  subscriptionId: 'sandbox-sub-1', verifiedByProvider: true, coveragePeriodVerified: true, status: 'approved',
   amountCents: 18000, currency: 'BRL',
   periodStart: '2026-10-19T18:22:00Z', periodEnd: '2026-11-19T18:22:00Z',
   ...overrides
@@ -126,4 +126,24 @@ test('duplicate observations cannot extend end date on their own', () => {
 });
 test('stale access_status is not an input and cannot grant access', () => {
   assert.equal(evaluateBillingAccess({ ...opts({ payments: [] }), accessStatus: 'active' }).accessGranted, false);
+});
+
+test('approved payment without independently verified coverage period cannot grant access', () => {
+  const result=run({payments:[period({
+    coveragePeriodVerified:false,
+    periodStart:'2026-10-19T18:22:38Z',
+    periodEnd:'2026-11-19T18:22:38Z'
+  })],now:'2026-10-20T00:00:00Z'});
+  assert.equal(result.accessGranted,false);
+  assert.equal(result.billingStatus,'pending');
+});
+test('next scheduled charge alone cannot authorize or extend access', () => {
+  const result=run({payments:[period({
+    coveragePeriodVerified:false,
+    periodStart:'2026-10-19T18:22:38Z',
+    periodEnd:'2026-11-19T18:22:38Z',
+    nextPaymentDate:'2026-11-19T18:22:38Z',
+  })],now:'2026-10-20T00:00:00Z'});
+  assert.equal(result.accessGranted,false);
+  assert.equal(result.paidThrough,null);
 });
