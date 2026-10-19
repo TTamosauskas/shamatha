@@ -15,6 +15,7 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const PROD_TOKEN = Deno.env.get("SHAMATHA_MP_PRODUCTION_ACCESS_TOKEN") || "";
 const PROD_SELLER_ID = Deno.env.get("SHAMATHA_MP_PRODUCTION_SELLER_ID") || "";
 const PRODUCTION_ENABLED = Deno.env.get("SHAMATHA_BILLING_PRODUCTION_ENABLED") === "true";
+const LAUNCH_APPROVED = Deno.env.get("SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED") === "true";
 const CHECKOUT_ENABLED = Deno.env.get("SHAMATHA_MP_PRODUCTION_CREATE_ENABLED") === "true";
 const ORIGIN = "https://ttamosauskas.github.io";
 const CHECKOUT_BACK_URL = ORIGIN + "/shamatha/minha-assinatura.html?checkout=return";
@@ -89,7 +90,7 @@ async function existingOpenIntent(userId: string) {
 async function resumeExisting(intent: {
   id: string; state: string; mp_preapproval_id: string | null;
   checkout_url: string | null
-}) {
+}, userId: string, userEmail: string) {
   if (intent.state !== "created" || !validSubscriptionId(intent.mp_preapproval_id) ||
       !validMercadoPagoCheckout(intent.checkout_url)) {
     halt("EXISTING_ATTEMPT_REQUIRES_REVIEW", 409);
@@ -100,7 +101,9 @@ async function resumeExisting(intent: {
   if (String(remote.id || "") !== intent.mp_preapproval_id ||
       String(remote.collector_id || "") !== PROD_SELLER_ID ||
       Number(remote.auto_recurring?.transaction_amount) !== 180 ||
-      remote.auto_recurring?.currency_id !== "BRL") {
+      remote.auto_recurring?.currency_id !== "BRL" ||
+      String(remote.external_reference ?? "") !== "shamatha:production:" + userId + ":" + intent.id ||
+      String(remote.payer_email ?? "").toLowerCase() !== userEmail.toLowerCase()) {
     halt("EXISTING_CHECKOUT_NEEDS_REVIEW", 409);
   }
   if (remote.status !== "pending") {
@@ -124,7 +127,7 @@ async function markForReview(intentId: string, reason: string) {
 
 async function startCheckout(userId: string, userEmail: string) {
   const before = await existingOpenIntent(userId);
-  if (before) return resumeExisting(before);
+  if (before) return resumeExisting(before,userId,userEmail);
 
   // Do not create a second live subscription in an already-linked account.
   const { data: linked, error: subscriptionError } = await admin.from("billing_subscriptions")
@@ -141,14 +144,19 @@ async function startCheckout(userId: string, userEmail: string) {
     .select("id,idempotency_key").single();
   if (reservationError || !intent) {
     const concurrent = await existingOpenIntent(userId);
-    if (concurrent) return resumeExisting(concurrent);
+    if (concurrent) return resumeExisting(concurrent,userId,userEmail);
     halt("CHECKOUT_RESERVATION_FAILED", 409);
   }
 
   let errorCode = "REMOTE_CREATION_REQUIRES_REVIEW";
   try {
-    const response = await fetch("https://api.mercadopago.com/preapproval", {
-      method: "POST",
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response: Response;
+    try {
+      response = await fetch("https://api.mercadopago.com/preapproval", {
+        method: "POST",
+        signal: controller.signal,
       headers: {
         Authorization: "Bearer " + PROD_TOKEN,
         "Content-Type": "application/json",
@@ -167,7 +175,10 @@ async function startCheckout(userId: string, userEmail: string) {
         back_url: CHECKOUT_BACK_URL,
         status: "pending"
       })
-    });
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) {
       errorCode = "MP_CREATE_HTTP_" + response.status;
       halt("PROVIDER_CREATION_REQUIRES_REVIEW", 502);
@@ -225,6 +236,7 @@ Deno.serve(async (req: Request) => {
     // Kill switches checked BEFORE any paid provider request or database write.
     const operational = checkStudentCheckoutGate({
       productionEnabled: PRODUCTION_ENABLED,
+      launchApproved: LAUNCH_APPROVED,
       checkoutEnabled: CHECKOUT_ENABLED,
       sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
       role: "student", isVerifiedEmail: true
@@ -238,6 +250,7 @@ Deno.serve(async (req: Request) => {
     if (exemptError) halt("EXEMPTION_READ_FAILED", 503);
     const eligibility = checkStudentCheckoutGate({
       productionEnabled: PRODUCTION_ENABLED,
+      launchApproved: LAUNCH_APPROVED,
       checkoutEnabled: CHECKOUT_ENABLED,
       sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
       role: profile.role,
