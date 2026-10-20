@@ -1,0 +1,35 @@
+name: Billing sandbox pure tests
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/shamatha-mp-sandbox-webhook/**"
+      - "tests/**"
+      - ".github/workflows/billing-sandbox-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/_shared/**"
+      - "tests/**"
+      - ".github/workflows/billing-sandbox-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pure-tests:
+    name: Pure billing module tests (no credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run pure tests without API tokens or external services
+        run: node --test tests/*.test.mjs
