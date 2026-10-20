@@ -31,6 +31,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: ''
       - name: Run pure tests without API tokens or external services
         run: node --test tests/*.test.mjs
