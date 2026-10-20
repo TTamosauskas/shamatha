@@ -130,3 +130,62 @@ test("a payment cannot back two distinct invoice IDs",()=>{
  input.invoiceSearch.paging.total=2;
  assert.throws(()=>verifySandboxInvoices(input),/PAYMENT_REUSED_ACROSS_INVOICES/);
 });
+
+
+test("buyer cancellation preserves the approved historical invoice",()=>{
+ const input=sample();input.subscription.status="cancelled";
+ const result=verifySandboxInvoices(input);
+ assert.equal(result.providerStatus,"cancelled");
+ assert.equal(result.rows.length,1);
+ assert.equal(result.rows[0].mp_invoice_id,"7033097180");
+ assert.equal(result.rows[0].payment_approved_verified,true);
+ assert.equal(result.approvedPaymentsVerified,1);
+ assert.equal(result.paidThrough,null);
+ assert.equal(result.grantsStudentAccess,false);
+});
+test("provider can spell canceled with one L without granting content",()=>{
+ const input=sample();input.subscription.status="canceled";
+ const result=verifySandboxInvoices(input);
+ assert.equal(result.providerStatus,"canceled");
+ assert.equal(result.rows.length,1);
+ assert.equal(result.grantsStudentAccess,false);
+});
+test("reconciling the same canceled subscription twice produces identical invoice IDs",()=>{
+ const input=sample();input.subscription.status="cancelled";
+ const first=verifySandboxInvoices(input);
+ const second=verifySandboxInvoices(input);
+ assert.equal(first.rows.length,1);
+ assert.equal(second.rows.length,1);
+ assert.equal(first.rows[0].mp_invoice_id,second.rows[0].mp_invoice_id);
+ assert.equal(first.rows[0].mp_payment_id,second.rows[0].mp_payment_id);
+ assert.equal(first.grantsStudentAccess,false);
+ assert.equal(second.grantsStudentAccess,false);
+});
+test("cancelled status never overrides account reference or seller validation",()=>{
+ const input=sample();input.subscription.status="cancelled";
+ input.subscription.external_reference="sandbox:forged-id";
+ assert.throws(()=>verifySandboxInvoices(input),/SUBSCRIPTION_MISMATCH/);
+});
+test("cancellation followed by a pending renewal invoice does not mark renewal approved",()=>{
+ const input=sample();input.subscription.status="cancelled";
+ const upcoming=structuredClone(input.invoiceSearch.results[0]);
+ upcoming.id=7033097181;
+ upcoming.payment={};
+ upcoming.status="scheduled";
+ upcoming.debit_date="2026-11-19T18:22:38Z";
+ input.invoiceSearch.results.push(upcoming);
+ input.invoiceSearch.paging.total=2;
+ const result=verifySandboxInvoices(input);
+ assert.equal(result.rows.length,2);
+ assert.equal(result.approvedPaymentsVerified,1);
+ assert.equal(result.rows[1].payment_approved_verified,false);
+ assert.equal(result.grantsStudentAccess,false);
+});
+test("paused subscription with previous payment still has no entitlement effect",()=>{
+ const input=sample();input.subscription.status="paused";
+ const result=verifySandboxInvoices(input);
+ assert.equal(result.providerStatus,"paused");
+ assert.equal(result.rows[0].payment_approved_verified,true);
+ assert.equal(result.coveragePeriodVerified,false);
+ assert.equal(result.grantsStudentAccess,false);
+});
