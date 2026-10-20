@@ -1,6 +1,6 @@
 # Shamatha — Conciliação automática em homologação
 
-Status em 20/10/2026: função Edge implantada em versão 3 com `verify_jwt=false` **somente porque valida assinaturas HMAC próprias**. A flag de conciliação continua DESATIVADA, e **nenhum Cron foi agendado**. Nenhuma cobrança, RLS ou permissão de alunos mudou.
+Status em 20/10/2026: função Edge implantada em versão 4 com `verify_jwt=false` **porque valida assinaturas HMAC próprias**. A flag de execução manual fictícia foi habilitada pelo proprietário e validada por chamada HMAC (HTTP 200), **mas nenhum Cron foi agendado**. A assinatura fictícia foi depois cancelada pelo comprador e o status `cancelled` confirmado na API. Nenhuma cobrança de produção, RLS ou permissão de alunos mudou.
 
 ## Histórico do primeiro teste: proteção JWT de gateway em 19/10/2026
 
@@ -70,15 +70,21 @@ O Mercado Pago lista eventos de subscription_preapproval, subscription_authorize
 - Proteção de chamada: HMAC-SHA256 do timestamp com SHAMATHA_MP_SANDBOX_CRON_SECRET; segredo nunca sai do Vault/Edge Functions. A função exige a flag SHAMATHA_MP_SANDBOX_AUTO_RECONCILE_ENABLED=true; por padrão fica desativada. Não adiciona CORS para navegador.
 - O protótipo recusa mais de 10 assinaturas ou mais de 10 faturas, em vez de ignorar silenciosamente registros. Deve ganhar paginação e monitoramento antes de produção.
 
+## Verificação após cancelamento pelo comprador — 20/10/2026
+
+Depois de o comprador cancelar a única assinatura de teste, foi feita **uma** chamada HMAC autenticada ao conciliador, que respondeu HTTP 200: uma assinatura, uma fatura, um pagamento aprovado e nenhum direito de acesso concedido. O banco registrou `last_provider_status=cancelled` e atualizou `last_checked_at=2026-10-20T11:39:42.898Z`. A fatura histórica e ID do pagamento continuaram iguais, sem criação de novas linhas.
+
+O cancelamento encerra o cenário de renovação automática para essa assinatura. **Nenhum novo teste de cobrança deve ser realizado sem autorização.** Como não existe cron agendado, a flag atualmente habilitada só permite requisições HMAC avulsas, não consultas periódicas por si só. O SQL para criar um job foi bloqueado pela ferramenta; não presumir que exista um job. Relatório completo: `docs/mercadopago-cancelamento-homologado.md`.
+
 ## Próximas etapas (não executar sem autorização)
 
 1. **Concluído:** segredo cadastrado no Vault e na Edge Function, módulo HMAC implantado, `verify_jwt=false` com verificação própria e testes negativos/positivos realizados com a flag desligada.
-2. **Pendente:** habilitar `SHAMATHA_MP_SANDBOX_AUTO_RECONCILE_ENABLED=true` **somente na função fictícia**, após autorização para iniciar consultas remotas. Isso não habilita criação de assinaturas, nem pagamento real.
-3. Fazer uma única chamada HMAC assinada via `pg_net` sem agendamento e verificar diretamente a mesma fatura já cadastrada, sem duplicações ou alterações no acesso de alunos. Corrigir divergências se houver.
+2. **Concluído:** flag fictícia habilitada, execução manual HMAC autenticada aprovada antes e depois do cancelamento pelo comprador; fatura única e acesso dos alunos inalterado.
+3. **Pendente:** investigar forma de receber eventos de assinatura via Mercado Pago e definir estratégia de alertas; não gerar nova assinatura apenas para testar notificações.
 4. Após sucesso, avaliar alertas/monitoramento, paginação e um Cron de seis em seis horas; não criar job antes da verificação manual.
 5. Separadamente, concluir Webhooks, períodos de cobertura e verificação do controle de acesso antes de qualquer publicação financeira.
 
-**Não há agendamento ativo; a função foi implantada com autenticação HMAC e conciliação desativada.** A conciliação manual da conta fictícia permanece aprovada. O Mercado Pago poderá cobrar novamente a assinatura fictícia em sua próxima recorrência independentemente deste job.
+**Não há agendamento ativo; a função foi implantada com autenticação HMAC e a execução manual fictícia habilitada.** A conciliação manual da conta fictícia permanece aprovada. O Mercado Pago poderá cobrar novamente a assinatura fictícia em sua próxima recorrência independentemente deste job.
 
 Documentação oficial:
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
