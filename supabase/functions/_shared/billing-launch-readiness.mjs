@@ -30,7 +30,7 @@ const validRef=x=>typeof x==="string"&&
  * Used only for a diagnostic checklist. Evidence URL metadata is not
  * authenticated by this function; manual verification remains mandatory.
  */
-export function auditBillingLaunchReadiness({evidence={},now="2026-10-20T12:00:00Z"}={}){
+export function auditBillingLaunchReadiness({evidence={},now=new Date().toISOString()}={}){
   const nowMs=typeof now==="string"&&ISO.test(now)?Date.parse(now):NaN;
   if(!Number.isFinite(nowMs))throw new TypeError("INVALID_AUDIT_TIME");
   const outstanding=[];
