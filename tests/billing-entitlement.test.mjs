@@ -147,3 +147,76 @@ test('next scheduled charge alone cannot authorize or extend access', () => {
   assert.equal(result.accessGranted,false);
   assert.equal(result.paidThrough,null);
 });
+
+
+test('cancellation from fake buyer does not invent a paid coverage period', () => {
+  const r=run({providerStatus:'cancelled',payments:[]});
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.paidThrough,null);
+  assert.equal(r.billingStatus,'cancelled');
+});
+test('approved fictitious invoice with a next charge timestamp still provides no entitlement', () => {
+  const r=run({
+    subscriptionId:'c5b3cfd34ca740cb8d1b7687c5ad13b2',
+    providerStatus:'cancelled',
+    payments:[{
+      ...period({
+        subscriptionId:'c5b3cfd34ca740cb8d1b7687c5ad13b2',
+        coveragePeriodVerified:false,
+        periodStart:'2026-10-19T18:22:38Z',
+        periodEnd:'2026-11-19T18:22:38Z'
+      }),
+      nextPaymentDate:'2026-11-19T18:22:38Z'
+    }]
+  });
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.paidThrough,null);
+});
+test('exempt pre-existing account is independent of provider cancellation', () => {
+  const r=run({exempt:true,providerStatus:'cancelled',payments:[]});
+  assert.deepEqual(r,{accessGranted:true,billingStatus:'exempt',paidThrough:null});
+});
+test('administrative suspension still overrides lifetime exemption', () => {
+  assert.equal(run({
+    exempt:true,administrativeStatus:'suspended',providerStatus:'cancelled',payments:[]
+  }).accessGranted,false);
+});
+test('renewal does not continue when its payment is declined', () => {
+  const r=run({
+    now:'2026-11-20T12:00:00Z',
+    providerStatus:'authorized',
+    payments:[period(),period({status:'rejected',periodStart:'2026-11-19T18:22:00Z',periodEnd:'2026-12-19T18:22:00Z'})]
+  });
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.billingStatus,'overdue');
+});
+test('a payment with no actual period end is not entitled even if marked approved', () => {
+  const r=run({payments:[period({periodEnd:null})]});
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.paidThrough,null);
+});
+test('an unverified late payment cannot extend a canceled subscription', () => {
+  const r=run({
+    now:'2026-11-20T12:00:00Z',
+    providerStatus:'cancelled',
+    payments:[period(),period({coveragePeriodVerified:false,periodStart:'2026-11-19T18:22:00Z',periodEnd:'2026-12-19T18:22:00Z'})]
+  });
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.billingStatus,'cancelled');
+});
+test('a double-booked observation with identical payment cannot authorize an extra month', () => {
+  const r=run({
+    now:'2026-11-21T00:00:00Z',
+    payments:[period(),period()]
+  });
+  assert.equal(r.accessGranted,false);
+});
+test('one millisecond after original coverage must be blocked without grace', () => {
+  const r=run({now:'2026-11-19T18:22:00.001Z',payments:[period()]});
+  assert.equal(r.accessGranted,false);
+  assert.equal(r.billingStatus,'overdue');
+});
+test('provider unknown state cannot bypass an approved payment record', () => {
+  const r=run({providerStatus:'unknown_live_status',payments:[period()]});
+  assert.equal(r.accessGranted,false);
+});
