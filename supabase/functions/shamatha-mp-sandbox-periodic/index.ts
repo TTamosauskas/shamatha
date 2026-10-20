@@ -1,13 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.10";
 import { verifySandboxInvoices } from "../_shared/mercadopago-sandbox-invoices.mjs";
+import { verifyCronSignature } from "../_shared/mercadopago-sandbox-cron-auth.mjs";
 
 /**
- * STAGED, NOT DEPLOYED/SCHEDULED. Strictly fake seller + sandbox observation table.
+ * Prepared for signed HMAC authentication; no Cron schedule. Fake seller only.
+ * The worker starts disabled and verifies the caller even while disabled.
  *
- * Future pg_cron + pg_net caller will use Authorization: Bearer <Vault secret>.
- * verify_jwt=false is required ONLY when using this independently verified
- * shared secret. Never configure CORS or reuse publishable/anon JWT for cron.
+ * Future pg_cron + pg_net caller signs the UTC timestamp with HMAC-SHA256,
+ * using the Vault secret without placing the secret in HTTP headers.
+ * verify_jwt=false is required for custom HMAC authentication, and MUST be
+ * used only with this fail-closed signature check. No browser CORS.
  * This function MUST NOT be scheduled until both a protected secret and
  * SHAMATHA_MP_SANDBOX_AUTO_RECONCILE_ENABLED=true are deliberately configured.
  *
@@ -25,16 +28,6 @@ const admin=createClient(URL,SERVICE_KEY,{auth:{autoRefreshToken:false,persistSe
 const noCache={ "Cache-Control":"no-store", "Content-Type":"application/json" };
 function response(code:number,body:unknown){return new Response(JSON.stringify(body),{status:code,headers:noCache});}
 function fail(msg:string,code=503):never{throw Object.assign(new Error(msg),{status:code});}
-
-async function equalSecret(expected:string,header:string):Promise<boolean>{
-  if(!expected||expected.length<32||expected.length>256||header.length>300)return false;
-  const match=/^Bearer ([A-Za-z0-9._~-]{32,256})$/.exec(header);
-  if(!match)return false;
-  const hash=async(s:string)=>new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)));
-  const a=await hash(expected),b=await hash(match[1]);
-  let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];
-  return mismatch===0;
-}
 
 async function getProvider(url:string,stage:string):Promise<Record<string,any>>{
   const controller=new AbortController();
@@ -93,13 +86,23 @@ async function reconcile(attempt:{
 
 Deno.serve(async(req:Request)=>{
   if(req.method!=="POST")return response(405,{error:"METHOD_NOT_ALLOWED"});
-  // The most important no-billing gate: OFF until deliberate activation.
-  if(!ENABLED)return response(503,{error:"SANDBOX_CRON_DISABLED"});
-  if(!URL||!SERVICE_KEY||!MP_TOKEN||!CRON_SECRET)return response(503,{error:"SANDBOX_CRON_UNCONFIGURED"});
+  // Authenticate BEFORE checking the disabled flag, so we can test auth safely
+  // without initiating provider calls. Both HTTP headers are non-secret values:
+  // UTC timestamp and HMAC digest. The actual secret remains in Vault/Function env.
+  if(!CRON_SECRET || CRON_SECRET.length<32 || !URL || !SERVICE_KEY){
+    return response(503,{error:"SANDBOX_CRON_UNCONFIGURED"});
+  }
   if(req.headers.has("Origin"))return response(403,{error:"BROWSER_ORIGIN_NOT_ALLOWED"});
-  if(!await equalSecret(CRON_SECRET,req.headers.get("Authorization")||"")){
+  if(!await verifyCronSignature({
+    timestamp:req.headers.get("x-shamatha-ts")||"",
+    signature:req.headers.get("x-shamatha-signature")||"",
+    secret:CRON_SECRET
+  })){
     return response(401,{error:"INVALID_CRON_AUTH"});
   }
+  // Keep disabled until owner expressly authorizes scheduled sandbox calls.
+  if(!ENABLED)return response(503,{error:"SANDBOX_CRON_DISABLED"});
+  if(!MP_TOKEN)return response(503,{error:"SANDBOX_CRON_UNCONFIGURED"});
   try{
     const seller=await getProvider(FAKEMERCHANT_URL,"seller");
     if(String(seller.id??"")!==SELLER_ID)fail("NOT_FAKE_SELLER");
