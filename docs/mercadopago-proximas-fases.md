@@ -274,6 +274,14 @@ Um HTTP POST sem Authorization, realizado uma única vez via `pg_net`, retornou 
 - `verify_jwt=true` continuará ativado até que exista e seja testada autenticação via segredo interno separado e forte, com Vault+Edge Function preparados. Somente depois alterar a política de JWT e agendar `pg_cron` em homologação.
 - O **PR #59**, aberto e sem merge, documenta precisamente a implantação bloqueada, o teste 401 e os passos restantes. O PR #49 permanece draft e NÃO deve ser mesclado por consequência.
 
+## Cron de homologação — autenticação HMAC concluída em 20/10/2026
+
+O proprietário configurou uma senha cron no Vault e em Edge Function Secrets. A antiga autenticação Bearer não aceitava os caracteres usados no segredo; a função `shamatha-mp-sandbox-periodic` v3 foi implantada com **HMAC-SHA256 e timestamp de 5 minutos**, usando `verify_jwt=false` com autenticação própria estrita.
+
+Testes internos via `pg_net`: sem HMAC 401, HMAC incorreto 401, HMAC expirado 401, HMAC assinado com o segredo do Vault **503 SANDBOX_CRON_DISABLED**. A última resposta comprova autenticidade e também a flag desligada. **Nenhuma consulta ao MP foi executada nesses testes.** O job de conciliação não existe, e não foi modificada a segurança/acesso dos alunos.
+
+**PR #60** aberto, sem merge, sincroniza o código do repositório com o deploy e documenta como agendar apenas depois de autorização explícita para a conciliação fictícia. São **10 testes criptográficos locais aprovados**. Próximo passo: habilitar somente `SHAMATHA_MP_SANDBOX_AUTO_RECONCILE_ENABLED=true` e testar **uma execução assinada manual** da função na conta vendedora fictícia; não confundir isso com habilitar checkout ou billing de produção.
+
 ## Gates obrigatorios antes de producao
 
 [ ] Fluxo de conciliacao automatica confirmado
