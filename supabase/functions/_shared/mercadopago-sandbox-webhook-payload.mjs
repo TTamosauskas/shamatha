@@ -8,7 +8,8 @@
 const TOPICS=new Set([
   "payment","subscription_preapproval","subscription_authorized_payment"
 ]);
-const ID=/^[a-zA-Z0-9_-]{1,80}$/;
+const RESOURCE_ID=/^[a-zA-Z0-9_-]{1,64}$/;
+const EVENT_ID=/^[a-zA-Z0-9_-]{1,80}$/;
 
 export function validateSandboxWebhook({ payload, dataId, sellerId="3778352536" }={}) {
   if(!payload||typeof payload!=="object"||Array.isArray(payload))
@@ -16,17 +17,17 @@ export function validateSandboxWebhook({ payload, dataId, sellerId="3778352536" 
   const type=payload.type;
   if(typeof type!=="string"||!TOPICS.has(type))
     throw new Error("UNSUPPORTED_EVENT");
-  if(typeof dataId!=="string"||!ID.test(dataId)||
+  if(typeof dataId!=="string"||!RESOURCE_ID.test(dataId)||
      !payload.data||typeof payload.data!=="object"||Array.isArray(payload.data))
     throw new Error("INVALID_RESOURCE_ID");
   const resourceId=payload.data.id;
   if(!["string","number"].includes(typeof resourceId) ||
-     !ID.test(String(resourceId)) ||
+     !RESOURCE_ID.test(String(resourceId)) ||
      String(resourceId).toLowerCase()!==dataId.toLowerCase())
     throw new Error("RESOURCE_ID_MISMATCH");
   const eventId=payload.id;
   if(!["string","number"].includes(typeof eventId)||
-     !ID.test(String(eventId)))throw new Error("INVALID_EVENT_ID");
+     !EVENT_ID.test(String(eventId)))throw new Error("INVALID_EVENT_ID");
 
   // A test seller is never allowed to create/update PRODUCTION records.
   // Reconfirm the real delivery's live_mode field before enabling this code.
