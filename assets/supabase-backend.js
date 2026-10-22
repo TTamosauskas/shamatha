@@ -428,7 +428,7 @@
         password: String(body.password || '')
       });
       if (error) throw new BackendError(readableError(error), 401, error);
-      return { user: publicUser(await profileForUser(data.user)) };
+      return { user: await gatedUser(await profileForUser(data.user)) };
     }
 
     if (path === '/api/logout' && method === 'POST') {
