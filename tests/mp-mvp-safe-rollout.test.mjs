@@ -7,7 +7,18 @@ const rls=read('supabase/migrations/20261022110000_billing_mvp_staged_gate.sql')
 const activate=read('ops/BILLING_MVP_ACTIVATE_ONLY_AFTER_APPROVAL.sql');
 const checkout=read('supabase/functions/shamatha-create-subscription/index.ts');
 const reconcile=read('supabase/functions/shamatha-reconcile-subscription/index.ts');
+const cancel=read('supabase/functions/shamatha-cancel-subscription/index.ts');
 const ui=read('minha-assinatura.html');
+test('cancellation has its own disabled-by-default flag, independent of checkout',()=>{
+  assert.match(cfg,/billingCancelEnabled: false/);
+  assert.match(cancel,/SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED/);
+  assert.match(cancel,/shamatha:production:/);
+  assert.match(cancel,/UNVERIFIED_SUBSCRIPTION_LINK/);
+  assert.match(cancel,/\{ status: "canceled" \}/);
+  assert.doesNotMatch(cancel,/req\.json\(/);
+  assert.match(ui,/shamatha-cancel-subscription/);
+  assert.match(ui,/Cancelar renovação automática/);
+});
 test('three public-facing feature switches default false',()=>{
   for(const key of ['billingUiEnabled','billingCheckoutEnabled','billingReconcileEnabled'])
     assert.match(cfg,new RegExp(key+': false'));
