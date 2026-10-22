@@ -86,6 +86,7 @@ const el=id=>document.getElementById(id);
 let loading=false;
 let authenticatedProfile=null;
 let currentView=null;
+let checkoutReturnHandled=false;
 const flags=window.SHAMATHA_CONFIG||{};
 function say(text){el('statusMessage').textContent=text;}
 function administrativeLabel(value){
@@ -115,6 +116,18 @@ async function refresh(){
       return;
     }
     const id=auth.user.id;
+    // The return URL is a navigation hint only. It NEVER grants content;
+    // all payment evidence must be independently rechecked by the server.
+    let returnVerificationFailed=false;
+    if(!checkoutReturnHandled &&
+       new URLSearchParams(location.search).get('checkout')==='return' &&
+       flags.billingReconcileEnabled===true){
+      checkoutReturnHandled=true;
+      try {
+        const {error}=await sb.functions.invoke('shamatha-reconcile-subscription',{body:{}});
+        if(error)returnVerificationFailed=true;
+      }catch(e){returnVerificationFailed=true;}
+    }
     const [profile,exemption,subscriptions]=await Promise.all([
       sb.from('profiles').select('id,email,role,access_status').eq('id',id).maybeSingle(),
       sb.from('billing_exemptions').select('user_id').eq('user_id',id).maybeSingle(),
@@ -158,7 +171,9 @@ async function refresh(){
       el('billingNotice').innerHTML='<strong>Pagamento seguro:</strong> o checkout abre no Mercado Pago. O acesso só será liberado depois de confirmação do pagamento pelo servidor.';
     }
     el('subscriptionPanel').hidden=false;
-    say('Situação atualizada. Acesso à trilha é decidido pelo servidor.');
+    say(returnVerificationFailed?
+      'O pagamento ainda não pôde ser confirmado. Use Verificar pagamento novamente.':
+      'Situação atualizada. Acesso à trilha é decidido pelo servidor.');
   }catch(e){
     say(e?.message||'Falha ao consultar a assinatura.');
   }finally{
