@@ -198,3 +198,24 @@ Referências oficiais:
 - https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/authorized-payment-search/get
 - https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/overview
 - https://supabase.com/docs/guides/functions/schedule-functions
+
+
+### Contratação novamente depois do cancelamento
+
+O aluno pode criar nova assinatura **apenas quando** todas as assinaturas
+anteriores de produção estiverem confirmadas como canceladas no banco e
+todos os respectivos períodos pagos tiverem expirado. A rotina de cancelamento
+retira a intenção de checkout anterior do estado aberto, depois de a API
+confirmar o cancelamento. Uma reconciliação posterior também faz esta
+limpeza ao constatar cancelamento direto no Mercado Pago.
+
+- `priorSubscriptionCheckoutGate` bloqueia nova cobrança se qualquer
+  assinatura ainda estiver pendente/autorizada/pausada ou com histórico
+  inconsistente; também bloqueia caso haja cobertura paga vigente.
+- O conciliador por login audita a assinatura mais recente. A rotina
+  periódica usa o ID interno da assinatura selecionada e verifica cada
+  contrato separadamente, inclusive um cancelado antigo ainda passível
+  de estorno. Nenhuma dessas escolhas vem de parâmetros do navegador.
+- A coexistência de múltiplos contratos **ativos** é proibida; solicitações
+  anômalas entram em revisão manual. Testes verificam que cancelamento não
+  causa dupla cobrança antes do fim do período já pago.
