@@ -219,3 +219,21 @@ limpeza ao constatar cancelamento direto no Mercado Pago.
 - A coexistência de múltiplos contratos **ativos** é proibida; solicitações
   anômalas entram em revisão manual. Testes verificam que cancelamento não
   causa dupla cobrança antes do fim do período já pago.
+
+
+### Aceite contratual e retorno do checkout
+
+- A página só envia a criação de assinatura após o aluno marcar a caixa
+  de aceite. O navegador transmite apenas `acceptTerms=true` e a versão
+  `shamatha-r180-monthly-v1`; o servidor autentica a conta e exige **ambos**
+  os valores antes de criar qualquer assinatura. Nenhum valor, vendedor ou
+  ID do estudante é aceito do corpo da requisição.
+- A migração preparatória adiciona à intenção de checkout
+  `terms_version` e `terms_accepted_at`, preenchidos no servidor como
+  evidência da versão e horário do aceite. O contrato **precisa ser revisto e
+  aprovado pelo proprietário antes de se usar essa versão para cobranças**.
+  Se o texto mudar substancialmente, criar uma nova versão antes do go-live.
+- Ao voltar com `?checkout=return`, a interface solicita **uma** reconciliação
+  autenticada se a flag estiver ativa. O redirecionamento e o parâmetro da
+  URL não liberam o aluno; somente o pagamento comprovado altera cobertura.
+  Em caso de atraso na confirmação, permanece disponível a verificação manual.
