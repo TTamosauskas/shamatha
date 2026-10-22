@@ -300,6 +300,14 @@
     const profile = profileResult.data;
     const status = profile.access_status || (profile.access_granted ? 'approved' : 'pending');
     if (profile.role !== 'editor' && status !== 'approved') fail('Seu acesso ao conteúdo aguarda a liberação do editor.', 403);
+    // Fast data route must obey the same server authorization as normal app-data.
+    // Without this check, an unpaid student would see an empty journey instead
+    // of being directed to the subscription screen after the RLS switch is on.
+    if (profile.role !== 'editor' && window.SHAMATHA_CONFIG?.billingUiEnabled===true) {
+      const {data:canRead,error:accessError}=await sb.rpc('shamatha_my_content_access');
+      if(accessError)fail('Verificação do acesso indisponível.',503);
+      if(canRead!==true)fail('PAYMENT_REQUIRED',402);
+    }
     if (stagesResult.error) fail(stagesResult.error.message || 'Falha ao carregar as etapas.');
     if (settingsResult.error) fail(settingsResult.error.message || 'Falha ao carregar as configurações.');
     if (progressResult.error && profile.role !== 'editor') fail(progressResult.error.message || 'Falha ao carregar o progresso.');
