@@ -47,6 +47,16 @@ test('student checkout blocked without independently set provider secrets and fl
     'SHAMATHA_MP_PRODUCTION_CREATE_ENABLED'
   ])assert.ok(checkout.includes(key));
 });
+test('fake seller can never be used as a production seller',()=>{
+  assert.match(checkout,/FAKE_SELLER_ID = "3778352536"/);
+  assert.match(checkout,/PROD_SELLER_ID !== FAKE_SELLER_ID/);
+  assert.match(checkout,/TEST_SELLER_PROHIBITED/);
+  assert.match(reconcile,/SELLER==='3778352536'/);
+});
+test('reconciliation refuses a provider subscription identity mismatch',()=>{
+  assert.match(reconcile,/SUBSCRIPTION_ID_MISMATCH/);
+  assert.match(reconcile,/remote\?\.id/);
+});
 test('student payment verification blocked independently of checkout switch',()=>{
   assert.match(reconcile,/SHAMATHA_BILLING_RECONCILE_ENABLED/);
   assert.match(reconcile,/sb\.auth\.getUser\(jwt\)/);
