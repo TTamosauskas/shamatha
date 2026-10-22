@@ -65,7 +65,7 @@ Deno.serve(async req=>{
       if(error||!auth?.user?.email)throw Error('BILLING_USER_NOT_VERIFIED');
       return await reconcileLiveStudent({
         sb,userId:row.user_id,email:auth.user.email,
-        token:TOKEN,seller:SELLER
+        subscriptionId:row.id,token:TOKEN,seller:SELLER
       });
     }));
     const failed=checked.filter(x=>x.status==='rejected').length;
