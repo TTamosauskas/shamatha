@@ -41,6 +41,10 @@ function routeUser(user) {
     location.href = './editor.html';
     return;
   }
+  if (user.billingEnforced && user.accessStatus === 'approved' && !user.accessGranted) {
+    location.href='./minha-assinatura.html?due=1';
+    return;
+  }
   if (user.accessStatus === 'approved' || user.accessGranted) {
     location.href = './app.html';
     return;
