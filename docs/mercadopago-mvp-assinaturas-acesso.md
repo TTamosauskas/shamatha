@@ -91,3 +91,38 @@ administrativa até ativação controlada.
 - Obter fatura: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
 - Obter assinatura: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-preapproval/get
 - Obter pagamento: https://www.mercadopago.com.br/developers/pt/reference/online-payments/payment/get-payment/get
+
+
+## Revisão adicional — 22/10/2026 (continuação do desenvolvimento)
+
+### Correções de segurança implementadas nesta branch
+
+- O vendedor fictício `3778352536` é rejeitado por `shamatha-create-subscription` e `shamatha-reconcile-subscription`, inclusive se alguém habilitar as flags por engano.
+- O conciliador rejeita um ID de assinatura retornado pela API que não coincida com o registro local.
+- O login utiliza `gatedUser()` para consultar a permissão do servidor e direcionar novos alunos sem cobertura à página Minha assinatura, sem confiar apenas na aprovação administrativa.
+- Foi adicionada uma Edge Function **não implantada**, `shamatha-cancel-subscription`, para cancelamento solicitado pelo próprio aluno, sem aceitar ID de assinatura do navegador. Ela compara assinatura, conta vendedora e referência de checkout na API do Mercado Pago, executa `PUT /preapproval/{id}` com `status=canceled` e preserva `paid_through` já verificado. Um eventual estorno deve ser analisado pelo conciliador.
+- A interface apresenta **Cancelar renovação automática** quando o aluno tem assinatura de produção em estado cancelável **e** `billingCancelEnabled=true`. A flag pública e a flag independente do servidor `SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED` estão desligadas. Esta operação não deve depender do kill switch que interrompe novas vendas.
+
+### Pendências obrigatórias ANTES de qualquer cobrança real
+
+1. **Webhook e/ou conciliação automática**: o login já solicita uma verificação atual quando configurado, mas renovações, reembolsos e chargebacks que ocorram fora de uma sessão ativa ainda exigem uma rotina periódica confiável ou um canal de notificações comprovado. Issue #65 continua aberta; não presumir que `POST /preapproval` admite `notification_url`.
+2. **Limite de doze faturas**: o conciliador atual opera em modo fail-closed quando a API devolve mais de 12 faturas. Isto evita liberação sem auditoria, mas **impede renovação automática confiável após o limite**. Antes do go-live é necessário um modelo incremental, paginado e testado com preservação da âncora mensal original; nunca aumentar arbitrariamente o limite sem testar a ordenação e a paginação do provedor.
+3. **Contrato**: o responsável precisa aprovar por escrito o período mensal ancorado no débito, cancelamento com conservação do período pago, regra de reembolso/disputa e ausência de tolerância após vencimento. A proposta técnica codificada não substitui aceite comercial.
+4. **Testes funcionais**: testar no ambiente isolado com aluno novo, aluno antigo isento, vendedor real controlado, confirmação do primeiro pagamento, renovação, falha, cancelamento, reembolso, duplicação e rollback RLS. Testes sintéticos/estáticos isoladamente não liberam produção.
+5. **Conexão**: colocar token de produção, seller ID e switches **somente em Supabase Edge Functions → Secrets**, nunca em código, issue, GitHub nem chat. Registrar evidência de que a conta produtiva pertence ao vendedor correto.
+6. **Deploy e autorização**: preparar migração com `enforce_payment=false`, implantar funções inertes com autenticação, validar e obter aprovação expressa para a execução do SQL final e o acionamento das flags, sem mudar o estado de contas existentes antes do corte.
+
+### Operações
+
+Funções candidatas de produção: `shamatha-create-subscription` (criação), `shamatha-reconcile-subscription` (consulta autenticada por aluno), `shamatha-cancel-subscription` (cancelamento autenticado por aluno). Todas devem permanecer **não implantadas** até validação integrada.
+
+Na ativação efetiva, operar e testar separadamente os quatro switches privados:
+- `SHAMATHA_BILLING_PRODUCTION_ENABLED`, `SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED`, `SHAMATHA_MP_PRODUCTION_CREATE_ENABLED` (criação).
+- `SHAMATHA_BILLING_RECONCILE_ENABLED` (conciliação, independente da criação).
+- `SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED` (cancelamento, independente da criação).
+
+Os switches públicos no site começam todos falsos: `billingUiEnabled`, `billingCheckoutEnabled`, `billingReconcileEnabled`, `billingCancelEnabled`. Não oferecer checkout ativo sem checar estado real do servidor e sem teste de acesso RLS.
+
+Referências oficiais:
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/subscription-management
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
