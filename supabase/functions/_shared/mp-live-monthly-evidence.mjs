@@ -68,10 +68,10 @@ export function verifyLiveMonthlyPayments({
     const valid=approved&&approvedAt!==null&&approvedAt>=a.debit&&approvedAt<end;
     rows.push({
       mp_authorized_payment_id:a.id,mp_payment_id:a.paymentId,
-      provider_status:a.status,amount_cents:18000,currency:'BRL',
+      provider_status:status,amount_cents:18000,currency:'BRL',
       period_start:valid?new Date(start).toISOString():null,
       period_end:valid?new Date(end).toISOString():null,
-      confirmed_at:valid?new Date(a.approvedAt).toISOString():null
+      confirmed_at:valid?new Date(approvedAt).toISOString():null
     });
   }
   return {providerStatus:s.status,rows,totalInvoices:all.length,
