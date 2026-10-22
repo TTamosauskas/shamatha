@@ -94,6 +94,10 @@ test('media path still checks RLS before producing signed audio URLs',()=>{
   const media=read('assets/child-stages-backend.js');
   assert.match(media,/SIGNED_SECONDS = window\.SHAMATHA_CONFIG\?\.billingUiEnabled===true \? 60/);
 });
+test('login gets server-verified entitlement instead of relying on administrative approval alone',()=>{
+  const backend=read('assets/supabase-backend.js');
+  assert.match(backend,/if \(path === '\/api\/login' && method === 'POST'\) \{[\s\S]*?return \{ user: await gatedUser\(await profileForUser\(data\.user\)\) \};/);
+});
 test('both app loader and login direct nonpaying students to subscriptions',()=>{
   assert.match(read('assets/app.js'),/minha-assinatura\.html\?due=1/);
   assert.match(read('assets/login.js'),/user\.billingEnforced/);
