@@ -11,6 +11,13 @@ revoke all on private.billing_access_control from public, anon, authenticated;
 insert into private.billing_access_control (singleton, enforce_payment)
 values (true,false) on conflict (singleton) do nothing;
 
+-- Record the exact contractual wording version accepted by the authenticated
+-- student BEFORE any live Mercado Pago subscription is created.
+-- Existing sandbox records are not modified and server flags remain OFF.
+alter table public.billing_checkout_intents
+  add column if not exists terms_version text,
+  add column if not exists terms_accepted_at timestamptz;
+
 -- Everyone existing at migration time is exempt. Repeat this snapshot inside
 -- the FINAL ACTIVATE TRANSACTION so nobody registered before launch is missed.
 insert into public.billing_exemptions (user_id,reason)
