@@ -8,7 +8,7 @@ import { collectAuthorizedInvoicePages, currentCycleCandidatePaymentIds } from "
  */
 const stop=(code,status=409)=>{throw Object.assign(new Error(code),{status});};
 const validId=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{12,80}$/.test(x);
-export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=Date.now()}){
+export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=Date.now(),subscriptionId=null}){
   if(!sb||!validId(userId)||!email||!token||!/^\d+$/.test(seller)||
       seller==='3778352536'||!Number.isFinite(nowMs))
     stop('BILLING_RECONCILIATION_NOT_CONFIGURED',503);
@@ -24,16 +24,27 @@ export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=D
       return await res.json();
     }finally{clearTimeout(timeout);}
   };
-  const [{data:profile,error:profileError},{data:subList,error:subError}]=await Promise.all([
+  const subscriptionQuery=sb.from('billing_subscriptions')
+    .select('id,mp_preapproval_id')
+    .eq('user_id',userId).eq('environment','production')
+    .order('created_at',{ascending:false})
+    .order('id',{ascending:false}).limit(1);
+  // The scheduled job reconciles each row independently. A student's own
+  // login instead checks the most recent subscription in their account.
+  if(subscriptionId){
+    if(!validId(subscriptionId))stop('BAD_SUBSCRIPTION_REFERENCE',409);
+    subscriptionQuery.eq('id',subscriptionId);
+  }
+  const [{data:profile,error:profileError},{data:sub,error:subError}]=await Promise.all([
     sb.from('profiles').select('id,role,access_status').eq('id',userId).maybeSingle(),
-    sb.from('billing_subscriptions').select('id,mp_preapproval_id')
-      .eq('user_id',userId).eq('environment','production').limit(3)
+    subscriptionQuery.maybeSingle()
   ]);
   if(profileError||subError)stop('DATABASE_UNAVAILABLE',503);
   if(!profile||profile.role!=='student')stop('STUDENT_ONLY',403);
-  if(!subList?.length)return {state:'no_subscription',paidThrough:null,accessGranted:false};
-  if(subList.length!==1)stop('MULTIPLE_SUBSCRIPTIONS_REVIEW',409);
-  const sub=subList[0];
+  if(!sub){
+    if(subscriptionId)stop('SUBSCRIPTION_NOT_FOUND',404);
+    return {state:'no_subscription',paidThrough:null,accessGranted:false};
+  }
   if(!validId(sub.mp_preapproval_id))stop('BAD_SUBSCRIPTION_REFERENCE',409);
   const remote=await get('/preapproval/'+encodeURIComponent(sub.mp_preapproval_id));
   if(String(remote?.id??'')!==sub.mp_preapproval_id)
@@ -85,6 +96,14 @@ export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=D
     updated_at:new Date(nowMs).toISOString()
   }).eq('id',sub.id).eq('user_id',userId);
   if(updateError)stop('SUBSCRIPTION_PERSIST_FAILED',503);
+  // A provider-confirmed cancellation retires this open checkout intent,
+  // permitting a new independent subscription AFTER the paid period expires.
+  if(['canceled','cancelled'].includes(remote.status)){
+    const {error:closeError}=await sb.from('billing_checkout_intents')
+      .update({state:'cancelled',updated_at:new Date(nowMs).toISOString()})
+      .eq('id',intent.id).eq('user_id',userId).eq('state','created');
+    if(closeError)stop('CHECKOUT_CANCELLATION_STATE_FAILED',503);
+  }
   return {
     state:display,paidThrough:audit.paidThrough,
     checkedInvoices:audit.rows.length,totalInvoices:audit.totalInvoices,
