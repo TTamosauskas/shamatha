@@ -70,3 +70,21 @@ test('HTML inline module parses after removing module import',()=>{
   const code=script.replace(/^import \{ formatSubscriptionState \} from '.+';\n/m,'');
   assert.doesNotThrow(()=>new Function(code));
 });
+
+
+test('optimized app data path verifies server-side current access',()=>{
+  const fast=read('assets/fast-app-data.js');
+  assert.match(fast,/shamatha_my_content_access/);
+  assert.match(fast,/fail\('PAYMENT_REQUIRED',402\)/);
+});
+test('media path still checks RLS before producing signed audio URLs',()=>{
+  const fast=read('assets/fast-app-data.js');
+  assert.match(fast,/from\('stages'\)/);
+  assert.match(fast,/sb\.rpc\('shamatha_my_content_access'\)/);
+  const media=read('assets/child-stages-backend.js');
+  assert.match(media,/SIGNED_SECONDS = window\.SHAMATHA_CONFIG\?\.billingUiEnabled===true \? 60/);
+});
+test('both app loader and login direct nonpaying students to subscriptions',()=>{
+  assert.match(read('assets/app.js'),/minha-assinatura\.html\?due=1/);
+  assert.match(read('assets/login.js'),/user\.billingEnforced/);
+});
