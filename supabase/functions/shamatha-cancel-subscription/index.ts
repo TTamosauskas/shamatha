@@ -75,12 +75,15 @@ Deno.serve(async (req: Request) => {
       stop("STUDENT_REQUIRED", 403);
     const { data: subscriptions, error: subError } = await admin
       .from("billing_subscriptions")
-      .select("id,mp_preapproval_id,paid_through")
-      .eq("user_id", userId).eq("environment", "production").limit(2);
+      .select("id,mp_preapproval_id,paid_through,provider_status")
+      .eq("user_id", userId).eq("environment", "production")
+      .order("created_at",{ascending:false}).limit(101);
     if (subError) stop("DATABASE_UNAVAILABLE", 503);
     if (!subscriptions?.length) stop("SUBSCRIPTION_NOT_FOUND", 404);
-    if (subscriptions.length !== 1) stop("MULTIPLE_SUBSCRIPTIONS_REVIEW", 409);
-    const sub = subscriptions[0];
+    if (subscriptions.length>100) stop("SUBSCRIPTION_HISTORY_REQUIRES_REVIEW",409);
+    const open = subscriptions.filter(x=>!["canceled","cancelled"].includes(x.provider_status));
+    if (open.length!==1) stop("SUBSCRIPTION_STATE_REQUIRES_REVIEW",409);
+    const sub = open[0];
     if (!validId(sub.mp_preapproval_id)) stop("SUBSCRIPTION_ID_INVALID", 409);
 
     const remote = await provider(
@@ -121,6 +124,12 @@ Deno.serve(async (req: Request) => {
       .eq("id", sub.id).eq("user_id", userId)
       .eq("environment", "production");
     if (updateError) stop("CANCELLATION_REQUIRES_REVIEW", 503);
+    // Remove the checkout's open-intent lock only AFTER provider confirms the
+    // cancellation. The previous payment record/coverage is not rewritten.
+    const {error:intentCloseError}=await admin.from("billing_checkout_intents")
+      .update({state:"cancelled",updated_at:new Date().toISOString()})
+      .eq("id",intent.id).eq("user_id",userId).eq("state","created");
+    if(intentCloseError)stop("CHECKOUT_CANCELLATION_STATE_FAILED",503);
     return json({ canceled: true, recurringChargesStopped: true,
       paidThrough: sub.paid_through, accessRevokedImmediately: false });
   } catch (error) {
