@@ -10,9 +10,9 @@
    vincula \`external_reference\` ao ID do usuário/intenção e rejeita vendedores errados.
 4. O pagamento não libera a trilha com base no redirecionamento do navegador.
    O estudante pode solicitar reconciliação via Edge Function autenticada; o
-   servidor consulta a assinatura, **todas** as faturas (até o limite seguro do
-   MVP) e cada pagamento individual pelo ID, validando vendedor, preço,
-   moeda, ID e período mensal.
+   servidor consulta a assinatura, pagina o histórico (máximo 240 faturas)
+   e consulta individualmente os pagamentos capazes de cobrir o período
+   atual, validando vendedor, preço, moeda, ID e datas.
 5. \`stages\` e \`progress\` usam a mesma função RLS já existente:
    com o novo switch ligado, somente **aprovados administrativamente E
    (isentos OU com pagamento confirmado e período vigente)** entram na trilha.
@@ -33,10 +33,10 @@ paginação incompleta e divergência de titular entram em revisão manual e
 **não geram cobertura**. Essa regra deve constar do texto contratual
 aceito antes da contratação e ser revista pelo responsável.
 
-O MVP não promete Webhook imediato. Verificação ocorre no retorno ao
-Shamatha e a cada login quando habilitada. Estornos feitos fora do site
-podem ser percebidos apenas na próxima consulta; para operação contínua
-será necessário monitoramento periódico em etapa separada.
+O MVP não promete Webhook imediato. A verificação pode ocorrer no retorno
+à conta, no login ou na rotina periódica preparada nesta branch; nenhum
+desses recursos está implantado em produção. Estornos externos serão
+detectados na próxima conciliação bem-sucedida, não instantaneamente.
 
 ## Status técnico desta branch
 
@@ -126,3 +126,75 @@ Os switches públicos no site começam todos falsos: `billingUiEnabled`, `billin
 Referências oficiais:
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/subscription-management
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks
+
+
+## Desenvolvimento adicional — paginação e conciliação sem login
+
+### Implementado no PR, ainda NÃO implantado
+- `mp-live-invoice-pages.mjs` percorre páginas de
+  `GET /authorized_payments/search` com limites, totais estáveis e detecção
+  de dados ausentes ou repetidos. Consulta o histórico completo até
+  **240 faturas** (limite de segurança; acima disso entra em revisão).
+- `mp-live-monthly-evidence.mjs` valida toda a sequência histórica de datas
+  sem conceder acesso a partir de pagamentos antigos não consultados.
+  Somente a fatura que pode cobrir **o período atual** é checada por ID na API
+  de pagamentos; a confirmação e possíveis estornos dessa fatura são
+  reavaliados a cada execução. Divergência de ciclo, identificador,
+  vendedor, valor ou moeda falha em modo seguro.
+- `mp-live-reconciliation.ts` concentra a mesma verificação do aluno e da
+  rotina periódica, evitando regras financeiras distintas.
+- `shamatha-reconcile-subscription` continua um endpoint
+  autenticado com JWT, sem aceitar identificadores financeiros do browser.
+- `shamatha-billing-periodic` é uma nova Edge Function de **uso exclusivamente
+  servidor-servidor**. Requer um segredo Bearer independente com no mínimo
+  32 caracteres, verificado por digest antes de qualquer leitura privilegiada,
+  além de **duas flags privadas** desligadas por padrão:
+  `SHAMATHA_BILLING_PERIODIC_ENABLED` e
+  `SHAMATHA_BILLING_RECONCILE_ENABLED`.
+  Percorre até cinco assinaturas de produção por chamada, com uma rotação
+  determinística a cada janela de 15 minutos. Retorna erro em qualquer
+  falha parcial para permitir alarme operacional.
+- `ops/BILLING_PERIODIC_SCHEDULE_ONLY_AFTER_APPROVAL.sql`: roteiro de
+  `pg_cron + pg_net + Supabase Vault` para chamadas a cada 15 minutos.
+  **É manual e NÃO foi executado**. Os segredos só devem entrar no Vault
+  e em Supabase Edge Function Secrets, jamais no GitHub/chat.
+
+### Capacidade e limites operacionais
+- Cinco assinaturas a cada 15 minutos representam uma capacidade nominal de
+  **480 verificações/dia**, antes de perdas por falha, concorrência ou
+  alteração de cadastro. Monitorar volume e ajustar batch/cadência antes
+  de escalar o serviço. Cada aluno pode provocar verificação adicional no login.
+- A checagem periódica não substitui um Webhook certificado do Mercado Pago,
+  mas reduz a dependência de login. Issue #65 permanece aberta para a
+  configuração e assinatura de notificações.
+- O limite de 240 faturas é intencional. Divergências de fatura deslocada,
+  cobrança tardia, dados incompletos e históricos acima desse limite exigem
+  auditoria e política comercial explícita; a aplicação não deve inventar
+  um período pago.
+- A reconciliação periódica está **preparada no repositório**: o sucesso
+  dos testes unitários não demonstra ainda conexão de produção ou eventos
+  reais de reembolso. O agendamento não foi criado em Supabase.
+
+### Sequência pendente antes de habilitar
+1. Proprietário aprova por escrito a política de cobrança mensal R$180,
+   início/fim de cobertura, perda sem tolerância após vencimento, cancelamento,
+   pagamento atrasado, estorno/chargeback e suporte.
+2. Usar as credenciais da **conta vendedora de produção** do Mercado Pago,
+   distintas do fake seller. Inserir token e ID somente em Supabase Secrets,
+   sem copiá-los para o chat, GitHub ou arquivos públicos.
+3. Revisar o PR e confirmar que a CI está verde; resolver a alternativa de
+   checkout do PR #68 antes do merge.
+4. Validar Edge Functions, RLS e login no ambiente controlado. Verificar pagamento
+   aprovado real de valor controlado e comportamento de renovação/recusa/
+   cancelamento/refund, com os riscos e custos conhecidos e explicitamente
+   autorizados.
+5. Implantar as funções com os switches OFF, aplicar a migração RLS com
+   `enforce_payment=false` e validar rollback sem interromper contas antigas.
+6. Somente com autorização específica: capturar isenções finais, habilitar
+   a aplicação financeira, os endpoints e a rotina periódica; acompanhar
+   logs de falha e frequência de reconciliação.
+
+### Referências oficiais consultadas
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/authorized-payment-search/get
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/overview
+- https://supabase.com/docs/guides/functions/schedule-functions
