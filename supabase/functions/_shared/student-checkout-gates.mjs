@@ -25,3 +25,27 @@ export function checkStudentCheckoutGate({
   if (hasExistingSubscription === true) return { allowed: false, reason: 'EXISTING_SUBSCRIPTION' };
   return { allowed: true, reason: 'ELIGIBLE_FOR_CHECKOUT_ONLY' };
 }
+
+
+/**
+ * A cancelled subscription can be replaced ONLY after its paid coverage ends.
+ * Pending, authorized, paused or unknown status must never produce a second
+ * live recurring subscription. Operates on trusted server-side DB rows only.
+ */
+export function priorSubscriptionCheckoutGate(rows,nowMs=Date.now()) {
+  if(!Array.isArray(rows)||rows.length>100||!Number.isFinite(nowMs))
+    return {allowed:false,reason:'SUBSCRIPTION_HISTORY_REQUIRES_REVIEW'};
+  for(const row of rows) {
+    if(!['canceled','cancelled'].includes(row?.provider_status))
+      return {allowed:false,reason:'EXISTING_SUBSCRIPTION_REQUIRES_RECONCILIATION'};
+    const end=row?.paid_through;
+    if(end!==null&&end!==undefined){
+      const time=Date.parse(end);
+      if(!Number.isFinite(time))
+        return {allowed:false,reason:'COVERAGE_DATE_REQUIRES_REVIEW'};
+      if(time>nowMs)
+        return {allowed:false,reason:'PREVIOUS_COVERAGE_STILL_ACTIVE'};
+    }
+  }
+  return {allowed:true,reason:'NO_OPEN_SUBSCRIPTION_OR_PAID_PERIOD'};
+}
