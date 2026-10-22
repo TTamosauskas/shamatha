@@ -17,7 +17,7 @@ const nextFromAnchor=(anchor,n)=>{
 };
 export function verifyLiveMonthlyPayments({
   userId,email,sellerId,localSubscriptionId,providerSubscription,
-  invoiceSearch,paymentsById={}
+  invoiceSearch,paymentsById={},nowMs=null
 }={}){
   if(!validId(userId)||!validId(localSubscriptionId)||!/^\d+$/.test(String(sellerId??''))||
       typeof email!=='string'||!email.includes('@'))throw Error('INVALID_OWNER');
@@ -32,7 +32,8 @@ export function verifyLiveMonthlyPayments({
       s.auto_recurring?.frequency_type!=='months')throw Error('SUBSCRIPTION_MISMATCH');
   if(!['pending','authorized','paused','cancelled','canceled'].includes(s.status))throw Error('UNKNOWN_SUBSCRIPTION_STATUS');
   const raw=invoiceSearch?.results, total=Number(invoiceSearch?.paging?.total ?? raw?.length);
-  if(!Array.isArray(raw)||raw.length>12||total!==raw.length||total>12)throw Error('INVOICE_BATCH_UNSAFE');
+  if(!Array.isArray(raw)||raw.length>240||total!==raw.length||total>240)throw Error('INVOICE_BATCH_UNSAFE');
+  if(nowMs!==null&&(!Number.isFinite(nowMs)||nowMs<0))throw Error('INVALID_VERIFICATION_TIME');
   const seen=new Set(),seenPay=new Set();
   const all=raw.map(invoice=>{
     const id=numeric(invoice?.id),paymentId=numeric(invoice?.payment?.id),debit=toTime(invoice?.debit_date);
@@ -42,16 +43,7 @@ export function verifyLiveMonthlyPayments({
     seen.add(id);
     if(paymentId&&seenPay.has(paymentId))throw Error('DUPLICATE_PAYMENT');
     if(paymentId)seenPay.add(paymentId);
-    const payment=paymentId?paymentsById[paymentId]:null;
-    if(paymentId&&!payment)throw Error('PAYMENT_NOT_FETCHED');
-    if(payment&&(numeric(payment.id)!==paymentId||
-       String(payment.collector_id)!==String(sellerId)||
-       !exactly180(payment.transaction_amount)||payment.currency_id!=='BRL'))
-       throw Error('PAYMENT_MISMATCH');
-    const status=String(payment?.status||'pending').toLowerCase();
-    const approved=!!payment&&status==='approved'&&invoice.payment?.status==='approved'&&invoice.status==='processed';
-    const approvedAt=toTime(payment?.date_approved);
-    return {id,paymentId,debit,status,approved:approved&&approvedAt!==null,approvedAt};
+    return {id,paymentId,debit,invoice};
   }).sort((a,b)=>a.debit-b.debit);
   const anchor=all[0]?.debit??null,rows=[];
   for(let i=0;i<all.length;i++){
@@ -59,7 +51,21 @@ export function verifyLiveMonthlyPayments({
     const start=nextFromAnchor(anchor,i),end=nextFromAnchor(anchor,i+1);
     // Any shifted debit/retry requires manual review; never infer more coverage.
     if(a.debit!==start||end<=start)throw Error('CYCLE_SHIFT_REVIEW');
-    const valid=a.approved&&a.approvedAt>=a.debit&&a.approvedAt<end;
+    // In an incremental audit, historical cycles are metadata-validated, but
+    // only the CURRENT paid period can grant RLS access. Verify its payment
+    // directly, including refunds and chargebacks, on every reconciliation.
+    if(nowMs!==null&&!(start<=nowMs&&nowMs<end))continue;
+    const payment=a.paymentId?paymentsById[a.paymentId]:null;
+    if(a.paymentId&&!payment)throw Error('PAYMENT_NOT_FETCHED');
+    if(payment&&(numeric(payment.id)!==a.paymentId||
+       String(payment.collector_id)!==String(sellerId)||
+       !exactly180(payment.transaction_amount)||payment.currency_id!=='BRL'))
+       throw Error('PAYMENT_MISMATCH');
+    const status=String(payment?.status||'pending').toLowerCase();
+    const approved=!!payment&&status==='approved'&&
+      a.invoice.payment?.status==='approved'&&a.invoice.status==='processed';
+    const approvedAt=toTime(payment?.date_approved);
+    const valid=approved&&approvedAt!==null&&approvedAt>=a.debit&&approvedAt<end;
     rows.push({
       mp_authorized_payment_id:a.id,mp_payment_id:a.paymentId,
       provider_status:a.status,amount_cents:18000,currency:'BRL',
@@ -68,7 +74,7 @@ export function verifyLiveMonthlyPayments({
       confirmed_at:valid?new Date(a.approvedAt).toISOString():null
     });
   }
-  return {providerStatus:s.status,rows,
+  return {providerStatus:s.status,rows,totalInvoices:all.length,
     approvedPeriods:rows.filter(x=>x.period_end).length,
     paidThrough:rows.filter(x=>x.period_end)
       .map(x=>x.period_end).sort().at(-1)??null};
