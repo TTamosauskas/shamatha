@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8');
+const cfg=read('assets/config.js');
+const rls=read('supabase/migrations/20261022110000_billing_mvp_staged_gate.sql');
+const activate=read('ops/BILLING_MVP_ACTIVATE_ONLY_AFTER_APPROVAL.sql');
+const checkout=read('supabase/functions/shamatha-create-subscription/index.ts');
+const reconcile=read('supabase/functions/shamatha-reconcile-subscription/index.ts');
+const ui=read('minha-assinatura.html');
+test('three public-facing feature switches default false',()=>{
+  for(const key of ['billingUiEnabled','billingCheckoutEnabled','billingReconcileEnabled'])
+    assert.match(cfg,new RegExp(key+': false'));
+});
+test('database enforcement is OFF even after preparatory migration',()=>{
+  assert.match(rls,/enforce_payment boolean not null default false/);
+  assert.match(rls,/values \(true,false\)/);
+});
+test('old students are snapshotted into exemptions by preparatory migration',()=>{
+  assert.match(rls,/insert into public\.billing_exemptions/);
+  assert.match(rls,/select id,/);
+});
+test('last-chance legacy snapshot and DB switch require separate manual transaction',()=>{
+  assert.match(activate,/lock table public\.profiles in share mode/i);
+  assert.match(activate,/on conflict \(user_id\) do nothing/);
+  assert.match(activate,/set enforce_payment=true/);
+});
+test('RLS requires approved admin status and current paid invoice if non-exempt',()=>{
+  assert.match(rls,/p\.access_status='approved'/);
+  assert.match(rls,/public\.billing_exemptions/);
+  assert.match(rls,/s\.environment='production'/);
+  assert.match(rls,/s\.paid_through > now\(\)/);
+  assert.match(rls,/b\.provider_status='approved'/);
+  assert.match(rls,/b\.period_start<=now\(\)/);
+  assert.match(rls,/b\.period_end>now\(\)/);
+});
+test('paid period cannot be decided solely by stored subscription state',()=>{
+  assert.match(rls,/public\.billing_payments b/);
+  assert.doesNotMatch(rls,/s\.access_status='active'/);
+});
+test('student checkout blocked without independently set provider secrets and flags',()=>{
+  for(const key of [
+    'SHAMATHA_MP_PRODUCTION_ACCESS_TOKEN',
+    'SHAMATHA_MP_PRODUCTION_SELLER_ID',
+    'SHAMATHA_BILLING_PRODUCTION_ENABLED',
+    'SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED',
+    'SHAMATHA_MP_PRODUCTION_CREATE_ENABLED'
+  ])assert.ok(checkout.includes(key));
+});
+test('student payment verification blocked independently of checkout switch',()=>{
+  assert.match(reconcile,/SHAMATHA_BILLING_RECONCILE_ENABLED/);
+  assert.match(reconcile,/sb\.auth\.getUser\(jwt\)/);
+});
+test('server reconciler verifies each payment by provider ID',()=>{
+  assert.match(reconcile,/\/v1\/payments\//);
+  assert.match(reconcile,/verifyLiveMonthlyPayments/);
+});
+test('student web checkout cannot supply identity or amount',()=>{
+  assert.doesNotMatch(checkout,/req\.json\(/);
+  assert.match(checkout,/amountCents: AMOUNT_CENTS/);
+});
+test('my subscription page gates checkout behind user acceptance',()=>{
+  assert.match(ui,/billingCheckoutEnabled===true/);
+  assert.match(ui,/acceptTerms/);
+  assert.match(ui,/shamatha-create-subscription/);
+});
+test('HTML inline module parses after removing module import',()=>{
+  const script=ui.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  const code=script.replace(/^import \{ formatSubscriptionState \} from '.+';\n/m,'');
+  assert.doesNotThrow(()=>new Function(code));
+});
