@@ -7,6 +7,8 @@ const rls=read('supabase/migrations/20261022110000_billing_mvp_staged_gate.sql')
 const activate=read('ops/BILLING_MVP_ACTIVATE_ONLY_AFTER_APPROVAL.sql');
 const checkout=read('supabase/functions/shamatha-create-subscription/index.ts');
 const reconcile=read('supabase/functions/shamatha-reconcile-subscription/index.ts');
+const core=read('supabase/functions/_shared/mp-live-reconciliation.ts');
+const periodic=read('supabase/functions/shamatha-billing-periodic/index.ts');
 const cancel=read('supabase/functions/shamatha-cancel-subscription/index.ts');
 const ui=read('minha-assinatura.html');
 test('cancellation has its own disabled-by-default flag, independent of checkout',()=>{
@@ -65,16 +67,28 @@ test('fake seller can never be used as a production seller',()=>{
   assert.match(reconcile,/SELLER==='3778352536'/);
 });
 test('reconciliation refuses a provider subscription identity mismatch',()=>{
-  assert.match(reconcile,/SUBSCRIPTION_ID_MISMATCH/);
-  assert.match(reconcile,/remote\?\.id/);
+  assert.match(core,/SUBSCRIPTION_ID_MISMATCH/);
+  assert.match(core,/remote\?\.id/);
 });
 test('student payment verification blocked independently of checkout switch',()=>{
   assert.match(reconcile,/SHAMATHA_BILLING_RECONCILE_ENABLED/);
   assert.match(reconcile,/sb\.auth\.getUser\(jwt\)/);
 });
 test('server reconciler verifies each payment by provider ID',()=>{
-  assert.match(reconcile,/\/v1\/payments\//);
-  assert.match(reconcile,/verifyLiveMonthlyPayments/);
+  assert.match(reconcile,/reconcileLiveStudent/);
+  assert.match(core,/\/v1\/payments\//);
+  assert.match(core,/verifyLiveMonthlyPayments/);
+  assert.match(core,/collectAuthorizedInvoicePages/);
+  assert.match(core,/currentCycleCandidatePaymentIds/);
+});
+test('batch reconciliation is secret-authenticated, independently gated and has a rotating scan',()=>{
+  assert.match(periodic,/SHAMATHA_BILLING_PERIODIC_ENABLED/);
+  assert.match(periodic,/SHAMATHA_BILLING_CRON_SECRET/);
+  assert.match(periodic,/authorizedBearer/);
+  assert.match(periodic,/crypto\.subtle\.digest/);
+  assert.match(periodic,/rotatingBillingBatchOffset/);
+  assert.match(periodic,/reconcileLiveStudent/);
+  assert.doesNotMatch(periodic,/req\.json\(/);
 });
 test('student web checkout cannot supply identity or amount',()=>{
   assert.doesNotMatch(checkout,/req\.json\(/);
