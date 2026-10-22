@@ -70,6 +70,7 @@
       <div class="actions">
         <button id="refreshStatus" type="button">Atualizar situação</button>
         <button id="verifyPayment" type="button" hidden>Verificar pagamento</button>
+        <button id="cancelSubscription" type="button" hidden>Cancelar renovação automática</button>
         <button id="startSubscription" type="button" disabled>Assinar por R$ 180/mês — indisponível</button>
       </div>
     </div>
@@ -118,7 +119,7 @@ async function refresh(){
       sb.from('profiles').select('id,email,role,access_status').eq('id',id).maybeSingle(),
       sb.from('billing_exemptions').select('user_id').eq('user_id',id).maybeSingle(),
       sb.from('billing_subscriptions')
-        .select('environment,access_status,paid_through,created_at')
+        .select('environment,provider_status,access_status,paid_through,created_at')
         .eq('user_id',id).order('created_at',{ascending:false}).limit(20)
     ]);
     if(profile.error||exemption.error||subscriptions.error) {
@@ -148,6 +149,11 @@ async function refresh(){
     el('startSubscription').disabled=!checkoutReady || !el('acceptTerms').checked;
     el('startSubscription').textContent=checkoutReady?'Assinar / regularizar — R$ 180/mês':'Assinatura indisponível';
     el('verifyPayment').hidden=flags.billingReconcileEnabled!==true;
+    const canCancel = flags.billingCancelEnabled===true &&
+      profile.data.role==='student' && !exemption.data &&
+      (subscriptions.data||[]).some(s=>s.environment==='production' &&
+        ['pending','authorized','paused'].includes(s.provider_status));
+    el('cancelSubscription').hidden=!canCancel;
     if(flags.billingCheckoutEnabled===true){
       el('billingNotice').innerHTML='<strong>Pagamento seguro:</strong> o checkout abre no Mercado Pago. O acesso só será liberado depois de confirmação do pagamento pelo servidor.';
     }
@@ -176,6 +182,21 @@ el('verifyPayment').addEventListener('click',async()=>{
   }catch(e){
     say('Ainda não foi possível confirmar seu pagamento. Tente novamente mais tarde.');
   }finally{el('verifyPayment').disabled=false;}
+});
+el('cancelSubscription').addEventListener('click',async()=>{
+  if(flags.billingCancelEnabled!==true ||
+     !window.confirm('Cancelar as próximas cobranças automáticas? O período já pago será preservado, salvo estorno.'))return;
+  el('cancelSubscription').disabled=true;
+  say('Solicitando cancelamento ao Mercado Pago…');
+  try{
+    const sb=window.ShamathaBackend.getClient();
+    const {data,error}=await sb.functions.invoke('shamatha-cancel-subscription',{body:{}});
+    if(error || data?.canceled!==true)throw error||new Error('Cancelamento não confirmado');
+    await refresh();
+    say('Renovação automática cancelada. O período já pago permanece sujeito à confirmação de pagamento.');
+  }catch(e){
+    say('Não foi possível confirmar o cancelamento. Contate o suporte antes da próxima cobrança.');
+  }finally{el('cancelSubscription').disabled=false;}
 });
 el('startSubscription').addEventListener('click',async()=>{
   if(flags.billingCheckoutEnabled!==true || !el('acceptTerms').checked ||
