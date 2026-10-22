@@ -20,6 +20,8 @@ const CHECKOUT_ENABLED = Deno.env.get("SHAMATHA_MP_PRODUCTION_CREATE_ENABLED") =
 const ORIGIN = "https://ttamosauskas.github.io";
 const CHECKOUT_BACK_URL = ORIGIN + "/shamatha/minha-assinatura.html?checkout=return";
 const AMOUNT_CENTS = 18000;
+// Never allow the previously tested fake seller to receive production checkout requests.
+const FAKE_SELLER_ID = "3778352536";
 const cors = {
   "Access-Control-Allow-Origin": ORIGIN,
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -113,6 +115,7 @@ async function resumeExisting(intent: {
 }
 
 async function verifiedSeller() {
+  if (PROD_SELLER_ID === FAKE_SELLER_ID) halt("TEST_SELLER_PROHIBITED", 403);
   const me = await mpGet("https://api.mercadolibre.com/users/me");
   if (String(me?.id || "") !== PROD_SELLER_ID) halt("SELLER_ID_MISMATCH", 403);
 }
@@ -239,7 +242,7 @@ Deno.serve(async (req: Request) => {
       productionEnabled: PRODUCTION_ENABLED,
       launchApproved: LAUNCH_APPROVED,
       checkoutEnabled: CHECKOUT_ENABLED,
-      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
+      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID) && PROD_SELLER_ID !== FAKE_SELLER_ID,
       role: "student", isVerifiedEmail: true
     });
     if (!operational.allowed) halt(operational.reason, 503);
@@ -253,7 +256,7 @@ Deno.serve(async (req: Request) => {
       productionEnabled: PRODUCTION_ENABLED,
       launchApproved: LAUNCH_APPROVED,
       checkoutEnabled: CHECKOUT_ENABLED,
-      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID),
+      sellerConfigured: !!PROD_TOKEN && /^\d+$/.test(PROD_SELLER_ID) && PROD_SELLER_ID !== FAKE_SELLER_ID,
       role: profile.role,
       isVerifiedEmail: !!authUser.email_confirmed_at,
       administrativeStatus: profile.access_status,
