@@ -37,7 +37,7 @@ Deno.serve(async req=>{
   if(req.headers.get('Origin')&&req.headers.get('Origin')!==ORIGIN)
     return json({error:'ORIGIN_NOT_ALLOWED'},403);
   if(req.method!=='POST')return json({error:'METHOD_NOT_ALLOWED'},405);
-  if(!ENABLED||!BASE||!SERVICE||!TOKEN||!/^\d+$/.test(SELLER))
+  if(!ENABLED||!BASE||!SERVICE||!TOKEN||!/^\d+$/.test(SELLER)||SELLER==='3778352536')
     return json({error:'BILLING_RECONCILIATION_DISABLED'},503);
   try{
     const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'').trim();
@@ -57,6 +57,8 @@ Deno.serve(async req=>{
     if(!validId(sub.mp_preapproval_id))stop('BAD_SUBSCRIPTION_REFERENCE',409);
     // Get subscription, exhaustive first <=12 invoices and each payment by ID.
     const remote=await get('https://api.mercadopago.com/preapproval/'+encodeURIComponent(sub.mp_preapproval_id));
+    if(String(remote?.id??'')!==sub.mp_preapproval_id)
+      stop('SUBSCRIPTION_ID_MISMATCH',409);
     const search=await get('https://api.mercadopago.com/authorized_payments/search?preapproval_id='+
       encodeURIComponent(sub.mp_preapproval_id)+'&limit=12&offset=0');
     if(!Array.isArray(search?.results))stop('INVALID_PROVIDER_INVOICES',502);
