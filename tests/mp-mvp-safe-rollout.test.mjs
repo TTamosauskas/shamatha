@@ -90,9 +90,21 @@ test('batch reconciliation is secret-authenticated, independently gated and has 
   assert.match(periodic,/reconcileLiveStudent/);
   assert.doesNotMatch(periodic,/req\.json\(/);
 });
-test('student web checkout cannot supply identity or amount',()=>{
-  assert.doesNotMatch(checkout,/req\.json\(/);
+test('only explicit versioned consent is accepted from browser; price and identity are server owned',()=>{
+  assert.match(checkout,/const consent=await req\.json\(\)/);
+  assert.match(checkout,/consent\?\.acceptTerms!==true/);
+  assert.match(checkout,/consent\?\.termsVersion!==TERMS_VERSION/);
+  assert.match(checkout,/terms_accepted_at: new Date\(\)\.toISOString\(\)/);
   assert.match(checkout,/amountCents: AMOUNT_CENTS/);
+  assert.match(rls,/add column if not exists terms_version text/);
+  assert.match(rls,/add column if not exists terms_accepted_at timestamptz/);
+  assert.match(ui,/acceptTerms:true,termsVersion:TERMS_VERSION/);
+  assert.match(ui,/const TERMS_VERSION='shamatha-r180-monthly-v1'/);
+});
+test('return from Mercado Pago is never treated as paid; server reconciliation required',()=>{
+  assert.match(ui,/checkoutReturnHandled/);
+  assert.match(ui,/new URLSearchParams\(location\.search\)\.get\('checkout'\)==='return'/);
+  assert.match(ui,/shamatha-reconcile-subscription/);
 });
 test('my subscription page gates checkout behind user acceptance',()=>{
   assert.match(ui,/billingCheckoutEnabled===true/);
