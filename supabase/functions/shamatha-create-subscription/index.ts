@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.10";
-import { checkStudentCheckoutGate } from "../_shared/student-checkout-gates.mjs";
+import { checkStudentCheckoutGate, priorSubscriptionCheckoutGate } from "../_shared/student-checkout-gates.mjs";
 
 /**
  * PREPARATORY CODE ONLY — NOT DEPLOYED. PRODUCTION CHECKOUT DISABLED.
@@ -132,13 +132,15 @@ async function startCheckout(userId: string, userEmail: string) {
   const before = await existingOpenIntent(userId);
   if (before) return resumeExisting(before,userId,userEmail);
 
-  // Do not create a second live subscription in an already-linked account.
+  // One cancelled, fully expired subscription can be replaced. Never create
+  // another live subscription or charge twice for overlapping paid coverage.
   const { data: linked, error: subscriptionError } = await admin.from("billing_subscriptions")
-    .select("mp_preapproval_id,provider_status")
+    .select("mp_preapproval_id,provider_status,paid_through")
     .eq("user_id", userId).eq("environment", "production")
-    .limit(5);
+    .limit(101);
   if (subscriptionError) halt("SUBSCRIPTIONS_READ_FAILED", 503);
-  if (linked?.length) halt("EXISTING_SUBSCRIPTION_REQUIRES_RECONCILIATION", 409);
+  const priorGate = priorSubscriptionCheckoutGate(linked || []);
+  if (!priorGate.allowed) halt(priorGate.reason, 409);
 
   // Unique partial index: exactly one open checkout per student and environment,
   // including under concurrent tab requests. No remote call on unique conflict.
