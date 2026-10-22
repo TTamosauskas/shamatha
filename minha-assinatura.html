@@ -32,7 +32,7 @@
     <a href="./index.html">Voltar ao acesso</a>
   </div>
   <section class="card" aria-labelledby="pageTitle">
-    <p class="eyebrow">Área do aluno · prévia de homologação</p>
+    <p class="eyebrow">Área do aluno · mensalidade</p>
     <h1 id="pageTitle">Minha assinatura</h1>
     <p class="lead">Consulte o estado da sua assinatura e as informações registradas para sua conta.</p>
 
@@ -51,13 +51,12 @@
         </dl>
       </div>
       <div class="notice">
-        <strong>Cobrança real ainda desativada.</strong>
-        Esta página é apenas uma prévia. Ainda não é possível pagar, regularizar ou ativar uma assinatura pelo Shamatha.
-        A situação apresentada é informativa e não modifica o acesso ao conteúdo.
+        <strong id="checkoutNoticeTitle">Pagamento ainda indisponível.</strong>
+        <span id="checkoutNoticeDescription">A contratação estará disponível aqui quando a verificação de pagamentos e as regras de acesso forem ativadas. Sua situação atual permanece inalterada.</span>
       </div>
       <div class="actions">
         <button id="refreshStatus" type="button">Atualizar situação</button>
-        <button type="button" disabled title="Pagamento indisponível até aprovação da ativação real">Pagar / regularizar — indisponível</button>
+        <button id="startCheckout" type="button" disabled title="Aguardando ativação segura do checkout">Assinar R$ 180/mês — indisponível</button>
       </div>
     </div>
   </section>
@@ -70,7 +69,23 @@ import { formatSubscriptionState } from './assets/subscription-status-view.mjs';
 
 const el=id=>document.getElementById(id);
 let loading=false;
+let canCheckout=false;
 function say(text){el('statusMessage').textContent=text;}
+function isSafeMercadoPagoUrl(value){
+  if(typeof value!=='string')return false;
+  try{
+    const u=new URL(value);
+    return u.protocol==='https:' && !u.username && !u.password &&
+      /(^|\\.)mercadopago\\.(com|com\\.br|com\\.ar|com\\.mx|com\\.uy)$/.test(u.hostname);
+  }catch{return false;}
+}
+function checkoutUnavailable(){
+  canCheckout=false;
+  el('startCheckout').disabled=true;
+  el('startCheckout').textContent='Assinar R$ 180/mês — indisponível';
+  el('checkoutNoticeTitle').textContent='Pagamento ainda indisponível.';
+  el('checkoutNoticeDescription').textContent='A contratação estará disponível aqui quando a integração estiver pronta. Sua situação atual permanece inalterada.';
+}
 function administrativeLabel(value){
   return value==='approved'?'Aprovado':value==='suspended'?'Suspenso':'Pendente';
 }
@@ -123,7 +138,23 @@ async function refresh(){
     el('billingDescription').textContent=view.message;
     el('paidThrough').textContent=humanDate(view.paidThrough);
     el('subscriptionPanel').hidden=false;
-    say('Consulta de leitura concluída. Nenhuma cobrança ou alteração de acesso foi realizada.');
+    checkoutUnavailable();
+    // Ausência da Edge Function ou do recurso ativo mantém o botão bloqueado.
+    // A interface nunca decide sozinha se uma cobrança real pode ocorrer.
+    try{
+      const {data:cap,error:capError}=await sb.functions.invoke(
+        'shamatha-mp-student-checkout',{method:'GET'}
+      );
+      if(!capError && cap?.enabled===true && !exemption.data) {
+        canCheckout=true;
+        el('startCheckout').disabled=false;
+        el('startCheckout').textContent='Assinar R$ 180 por mês';
+        el('startCheckout').title='Contratar no site seguro do Mercado Pago';
+        el('checkoutNoticeTitle').textContent='Assinatura mensal';
+        el('checkoutNoticeDescription').textContent='O pagamento é realizado no Mercado Pago. A liberação da trilha depende de aprovação administrativa e confirmação do pagamento pelo servidor.';
+      }
+    }catch{checkoutUnavailable();}
+    say('Situação consultada. Nenhuma cobrança foi realizada.');
   }catch(e){
     say(e?.message||'Falha ao consultar a assinatura.');
   }finally{
@@ -132,6 +163,30 @@ async function refresh(){
   }
 }
 el('refreshStatus').addEventListener('click',refresh);
+el('startCheckout').addEventListener('click',async()=>{
+  if(!canCheckout)return;
+  const button=el('startCheckout');
+  canCheckout=false;button.disabled=true;
+  button.textContent='Preparando checkout…';
+  say('Solicitando checkout seguro ao servidor…');
+  try{
+    const backend=window.ShamathaBackend;
+    const sb=backend?.getClient?.();
+    if(!sb)throw new Error('Conexão indisponível.');
+    const {data,error}=await sb.functions.invoke(
+      'shamatha-mp-student-checkout',
+      {body:{action:'create_checkout'}}
+    );
+    if(error||!isSafeMercadoPagoUrl(data?.checkoutUrl)){
+      throw new Error('Não foi possível abrir o pagamento. Consulte o atendimento antes de repetir.');
+    }
+    // O retorno da página de pagamento não será tratado como prova de quitação.
+    window.location.assign(data.checkoutUrl);
+  }catch(e){
+    checkoutUnavailable();
+    say(e?.message||'Falha ao iniciar a contratação.');
+  }
+});
 refresh();
 </script>
 </body>
