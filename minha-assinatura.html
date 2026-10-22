@@ -88,6 +88,7 @@ let authenticatedProfile=null;
 let currentView=null;
 let checkoutReturnHandled=false;
 const flags=window.SHAMATHA_CONFIG||{};
+const TERMS_VERSION='shamatha-r180-monthly-v1';
 function say(text){el('statusMessage').textContent=text;}
 function administrativeLabel(value){
   return value==='approved'?'Aprovado':value==='suspended'?'Suspenso':'Pendente';
@@ -220,7 +221,9 @@ el('startSubscription').addEventListener('click',async()=>{
   say('Preparando seu checkout seguro…');
   try{
     const sb=window.ShamathaBackend.getClient();
-    const {data,error}=await sb.functions.invoke('shamatha-create-subscription',{body:{}});
+    const {data,error}=await sb.functions.invoke('shamatha-create-subscription',{
+      body:{acceptTerms:true,termsVersion:TERMS_VERSION}
+    });
     if(error || !data?.checkoutUrl)throw error||new Error(data?.error||'Checkout não disponível');
     const target=new URL(data.checkoutUrl);
     if(target.protocol!=='https:'||
