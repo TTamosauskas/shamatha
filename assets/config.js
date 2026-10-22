@@ -8,6 +8,7 @@ window.SHAMATHA_CONFIG = Object.freeze({
   billingUiEnabled: false,
   billingCheckoutEnabled: false,
   billingReconcileEnabled: false,
+  billingCancelEnabled: false,
   baseUrl: 'https://ttamosauskas.github.io/shamatha/',
   supabaseUrl: 'https://zglitbtwzntpchzhrdcy.supabase.co',
   supabasePublishableKey: 'sb_publishable_wgHuzRlFXt2eorcdLHnx7w_8TcAx6EP'
