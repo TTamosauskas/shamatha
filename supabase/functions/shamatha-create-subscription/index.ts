@@ -20,6 +20,7 @@ const CHECKOUT_ENABLED = Deno.env.get("SHAMATHA_MP_PRODUCTION_CREATE_ENABLED") =
 const ORIGIN = "https://ttamosauskas.github.io";
 const CHECKOUT_BACK_URL = ORIGIN + "/shamatha/minha-assinatura.html?checkout=return";
 const AMOUNT_CENTS = 18000;
+const TERMS_VERSION = "shamatha-r180-monthly-v1";
 // Never allow the previously tested fake seller to receive production checkout requests.
 const FAKE_SELLER_ID = "3778352536";
 const cors = {
@@ -82,7 +83,7 @@ async function requireStudent(req: Request) {
 
 async function existingOpenIntent(userId: string) {
   const { data, error } = await admin.from("billing_checkout_intents")
-    .select("id,state,mp_preapproval_id,checkout_url")
+    .select("id,state,mp_preapproval_id,checkout_url,terms_version,terms_accepted_at")
     .eq("user_id", userId).eq("environment", "production")
     .in("state", ["creating", "created", "needs_review"]).maybeSingle();
   if (error) halt("INTENT_READ_FAILED", 503);
@@ -91,9 +92,12 @@ async function existingOpenIntent(userId: string) {
 
 async function resumeExisting(intent: {
   id: string; state: string; mp_preapproval_id: string | null;
-  checkout_url: string | null
+  checkout_url: string | null;
+  terms_version: string | null; terms_accepted_at: string | null
 }, userId: string, userEmail: string) {
-  if (intent.state !== "created" || !validSubscriptionId(intent.mp_preapproval_id) ||
+  if (intent.state !== "created" ||
+      intent.terms_version !== TERMS_VERSION || !intent.terms_accepted_at ||
+      !validSubscriptionId(intent.mp_preapproval_id) ||
       !validMercadoPagoCheckout(intent.checkout_url)) {
     halt("EXISTING_ATTEMPT_REQUIRES_REVIEW", 409);
   }
@@ -145,7 +149,8 @@ async function startCheckout(userId: string, userEmail: string) {
   // Unique partial index: exactly one open checkout per student and environment,
   // including under concurrent tab requests. No remote call on unique conflict.
   const { data: intent, error: reservationError } = await admin.from("billing_checkout_intents")
-    .insert({ user_id: userId, environment: "production", state: "creating" })
+    .insert({ user_id: userId, environment: "production", state: "creating",
+      terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() })
     .select("id,idempotency_key").single();
   if (reservationError || !intent) {
     const concurrent = await existingOpenIntent(userId);
@@ -266,7 +271,11 @@ Deno.serve(async (req: Request) => {
     });
     if (!eligibility.allowed) halt(eligibility.reason, 403);
 
-    // No sensitive or user-configurable checkout parameters are read from body.
+    // The ONLY accepted user-controlled input is an explicit acceptance of
+    // this exact contract version. Never read identity, price or seller from it.
+    const consent=await req.json().catch(()=>null);
+    if(consent?.acceptTerms!==true || consent?.termsVersion!==TERMS_VERSION)
+      halt("SUBSCRIPTION_TERMS_ACCEPTANCE_REQUIRED", 400);
     await verifiedSeller();
     const checkout = await startCheckout(authUser.id, String(authUser.email).toLowerCase());
     return json({
