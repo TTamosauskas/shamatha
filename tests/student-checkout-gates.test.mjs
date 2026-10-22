@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {checkStudentCheckoutGate} from '../supabase/functions/_shared/student-checkout-gates.mjs';
+import {checkStudentCheckoutGate,priorSubscriptionCheckoutGate} from '../supabase/functions/_shared/student-checkout-gates.mjs';
 
 const input=(overrides={})=>({
   productionEnabled:true, launchApproved:true, checkoutEnabled:true, sellerConfigured:true,
@@ -24,3 +24,40 @@ test('final launch approval is an independent kill switch',()=>assert.equal(chec
 test('string launch approval does not enable billing',()=>assert.equal(checkStudentCheckoutGate(input({launchApproved:'true'})).allowed,false));
 
 test('unknown administrative status fails closed',()=>assert.equal(checkStudentCheckoutGate(input({administrativeStatus:'arbitrary'})).reason,'ACCOUNT_STATUS_UNRECOGNIZED'));
+
+test('cancelled subscription with expired coverage permits a new contract',()=>{
+  assert.equal(priorSubscriptionCheckoutGate([
+    {provider_status:'canceled',paid_through:'2026-10-20T00:00:00Z'}
+  ],Date.parse('2026-10-22T00:00:00Z')).allowed,true);
+});
+test('cancelled subscription does not double bill during previously paid period',()=>{
+  assert.equal(priorSubscriptionCheckoutGate([
+    {provider_status:'canceled',paid_through:'2026-11-20T00:00:00Z'}
+  ],Date.parse('2026-10-22T00:00:00Z')).reason,'PREVIOUS_COVERAGE_STILL_ACTIVE');
+});
+test('pending, authorized and paused subscriptions prohibit second checkout',()=>{
+  for(const provider_status of ['pending','authorized','paused','unexpected']){
+    assert.equal(priorSubscriptionCheckoutGate([
+      {provider_status,paid_through:null}
+    ]).reason,'EXISTING_SUBSCRIPTION_REQUIRES_RECONCILIATION');
+  }
+});
+test('multiple past cancellations all require expired paid periods',()=>{
+  const now=Date.parse('2026-10-22T00:00:00Z');
+  assert.equal(priorSubscriptionCheckoutGate([
+    {provider_status:'cancelled',paid_through:null},
+    {provider_status:'canceled',paid_through:'2026-10-20T00:00:00Z'}
+  ],now).allowed,true);
+  assert.equal(priorSubscriptionCheckoutGate([
+    {provider_status:'cancelled',paid_through:'2026-11-20T00:00:00Z'},
+    {provider_status:'canceled',paid_through:'2026-10-20T00:00:00Z'}
+  ],now).allowed,false);
+});
+test('corrupt coverage timestamp and oversized history fail closed',()=>{
+  assert.equal(priorSubscriptionCheckoutGate([
+    {provider_status:'cancelled',paid_through:'invalid'}
+  ]).reason,'COVERAGE_DATE_REQUIRES_REVIEW');
+  assert.equal(priorSubscriptionCheckoutGate(new Array(101).fill({
+    provider_status:'canceled',paid_through:null
+  })).allowed,false);
+});
