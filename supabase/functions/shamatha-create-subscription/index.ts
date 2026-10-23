@@ -20,6 +20,9 @@ const CHECKOUT_ENABLED = Deno.env.get("SHAMATHA_MP_PRODUCTION_CREATE_ENABLED") =
 const ORIGIN = "https://ttamosauskas.github.io";
 const CHECKOUT_BACK_URL = ORIGIN + "/shamatha/minha-assinatura.html?checkout=return";
 const AMOUNT_CENTS = 18000;
+// Compile-time launch lock: cannot be bypassed by any environment secret.
+// Change only in a separate, explicitly authorized go-live review.
+const PRELAUNCH_CHECKOUT_LOCKED = true;
 const TERMS_VERSION = "shamatha-r180-monthly-v1";
 // Never allow the previously tested fake seller to receive production checkout requests.
 const FAKE_SELLER_ID = "3778352536";
@@ -243,6 +246,7 @@ Deno.serve(async (req: Request) => {
   }
   try {
     if (req.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
+    if (PRELAUNCH_CHECKOUT_LOCKED) halt("CHECKOUT_AWAITING_FINAL_LAUNCH", 503);
 
     // Kill switches checked BEFORE any paid provider request or database write.
     const operational = checkStudentCheckoutGate({
