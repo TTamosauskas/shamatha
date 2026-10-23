@@ -361,3 +361,30 @@ protegida por segredo de uso único, sem alterações de conta ou cobranças:
 Pós-verificação: `enforce_payment=false`, nenhuma assinatura/pagamento
 de produção, nenhum job periódico de billing. Exige novo teste com
 **igualdade comprovada** antes de prosseguir ao checkout controlado.
+
+
+### Revalidação concluída do par token/vendedor — 23/10/2026
+
+**A pendência anterior `SELLER_MISMATCH` foi resolvida.** Após o
+responsável corrigir os segredos da mesma conta no Supabase, uma nova
+verificação temporária e **somente de leitura** confirmou:
+
+- `GET https://api.mercadolibre.com/users/me`: HTTP 200;
+- o `id` retornado pela API **é idêntico** ao Secret
+  `SHAMATHA_MP_PRODUCTION_SELLER_ID`;
+- o Access Token possui o prefixo `APP_USR-` (aparência de credencial
+  produtiva) e não `TEST-`. O token não foi exposto;
+- o mecanismo de diagnóstico efêmero foi removido por novo deploy da
+  versão original de `shamatha-billing-periodic`. Verificação posterior
+  constatou que o código temporário não permaneceu implantado.
+
+A checagem final do banco confirmou `enforce_payment=false`,
+2 perfis/2 isenções, 0 assinaturas de produção, 0 pagamentos e 0
+cron jobs de billing. As quatro flags da interface em `assets/config.js`
+seguem `false`; PR #67 continua **draft, sem merge**.
+
+**Próximo bloqueio:** executar homologação integrada controlada do ciclo
+financeiro (aceite, criação de assinatura, fatura aprovada e recusada,
+acesso, estorno, cancelamento e rollback), revisar os termos exibidos
+ao aluno e obter autorização explícita adicional do responsável antes
+de qualquer cobrança real ou aplicação de `enforce_payment=true`.
