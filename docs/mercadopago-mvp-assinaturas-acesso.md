@@ -47,7 +47,7 @@ detectados na próxima conciliação bem-sucedida, não instantaneamente.
   implantado**, \`SHAMATHA_BILLING_RECONCILE_ENABLED=false\` por padrão.
 - \`assets/config.js\`: três flags públicas **false**. A interface fica
   informativa e não cria cobrança até ativação coordenada.
-- \`20261022110000_billing_mvp_staged_gate.sql\`: migração preparatória
+- \`20261023201342_billing_mvp_staged_gate.sql\`: migração preparatória
   que cria \`private.billing_access_control\` com \`enforce_payment=false\`,
   preserva a aprovação administrativa e cadastra como isentas as contas
   existentes. **Não ativar nesta migração.**
