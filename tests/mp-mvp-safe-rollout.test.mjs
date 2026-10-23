@@ -139,6 +139,11 @@ test('login gets server-verified entitlement instead of relying on administrativ
   const backend=read('assets/supabase-backend.js');
   assert.match(backend,/if \(path === '\/api\/login' && method === 'POST'\) \{[\s\S]*?return \{ user: await gatedUser\(await profileForUser\(data\.user\)\) \};/);
 });
+test('new pending students reach subscription without bypassing administrative suspension',()=>{
+  const login=read('assets/login.js');
+  assert.match(login,/user\.billingEnforced && user\.accessStatus !== 'suspended' && !user\.accessGranted/);
+  assert.match(login,/minha-assinatura\.html\?due=1/);
+});
 test('both app loader and login direct nonpaying students to subscriptions',()=>{
   assert.match(read('assets/app.js'),/minha-assinatura\.html\?due=1/);
   assert.match(read('assets/login.js'),/user\.billingEnforced/);
