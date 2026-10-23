@@ -41,6 +41,22 @@ test('refunded payment does not provide coverage',()=>{
   const a=sample();a.paymentsById['90001'].status='refunded';
   assert.equal(verify(a).paidThrough,null);
 });
+test('partially refunded approved payment does not unlock the content',()=>{
+  for(const mutation of [
+    {status_detail:'partially_refunded'},
+    {transaction_amount_refunded:12},
+    {refunds:[{id:777,amount:12,status:'approved'}]}
+  ]){
+    const a=sample();
+    Object.assign(a.paymentsById['90001'],mutation);
+    assert.equal(verify(a).paidThrough,null);
+  }
+});
+test('invoice marks partial refund even if provider status stays approved',()=>{
+  const a=sample();
+  a.invoiceSearch.results[0].payment.status_detail='partially_refunded';
+  assert.equal(verify(a).paidThrough,null);
+});
 test('chargeback does not provide coverage',()=>{
   const a=sample();a.paymentsById['90001'].status='charged_back';
   assert.equal(verify(a).paidThrough,null);
