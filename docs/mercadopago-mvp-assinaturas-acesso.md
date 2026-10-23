@@ -305,3 +305,33 @@ não deve ser mesclado junto ao #67.
 
 **Nenhum segredo de produção foi escrito no GitHub ou nesta conversa.
 Nenhuma cobrança real ou migração de ativação foi executada.**
+
+
+### Verificação read-only da configuração Mercado Pago — 23/10/2026
+
+O responsável informou ter configurado `SHAMATHA_MP_PRODUCTION_ACCESS_TOKEN`
+e `SHAMATHA_MP_PRODUCTION_SELLER_ID` no Supabase. Foi executada uma
+verificação temporária, protegida por um segredo de uso único e acionada
+apenas por `pg_net`, em uma Edge Function já existente.
+
+- O Access Token **existe** no ambiente Edge Functions e uma chamada
+  de leitura `GET https://api.mercadolibre.com/users/me` retornou
+  um usuário válido (**token funcional**, sem demonstrar por si só que a
+  credencial pertence ao ambiente *Produção*).
+- `SHAMATHA_MP_PRODUCTION_SELLER_ID` também existe, mas **não consiste
+  exclusivamente de dígitos**; não pode passar o validador do checkout.
+- Nenhum valor de token, ID de usuário ou segredo temporário foi impresso,
+  armazenado neste repositório ou entregue ao navegador.
+- O código temporário de diagnóstico **foi retirado** por novo deploy da
+  versão original da função `shamatha-billing-periodic`, sem Cron,
+  e as flags de conciliação/criação continuam desligadas.
+- **Ação manual pendente:** corrigir `SHAMATHA_MP_PRODUCTION_SELLER_ID`
+  para o User ID numérico da **mesma conta** cujo token está no Secret,
+  sem aspas, prefixos, letras ou espaços. Conferir o seletor *Produção*
+  no painel Mercado Pago, pois a autenticação do token sozinha não
+  prova ambiente produtivo.
+- Após a correção, repetir a validação da igualdade entre `/users/me.id`
+  e `SELLER_ID` antes de qualquer contratação real.
+
+Nenhum pagamento real foi iniciado, nenhuma restrição RLS de pagamento
+foi habilitada e nenhum segredo de produção foi exposto.
