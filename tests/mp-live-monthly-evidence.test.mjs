@@ -81,6 +81,16 @@ test('external reference bound to authenticated student is required',()=>{
   const a=sample();a.providerSubscription.external_reference='other';
   assert.throws(()=>verify(a),/SUBSCRIPTION_MISMATCH/);
 });
+test('documented GET response without payer_email needs independent buyer proof',()=>{
+  const a=sample();delete a.providerSubscription.payer_email;
+  assert.throws(()=>verify(a),/SUBSCRIPTION_MISMATCH/);
+  assert.equal(verify({...a,buyerVerified:true}).paidThrough,
+    '2026-11-19T18:22:38.000Z');
+});
+test('explicitly wrong payer email fails even with external buyer proof',()=>{
+  const a=sample();a.providerSubscription.payer_email='someone-else@example.com';
+  assert.throws(()=>verify({...a,buyerVerified:true}),/SUBSCRIPTION_MISMATCH/);
+});
 test('payer email mismatch is rejected',()=>{
   const a=sample();a.providerSubscription.payer_email='another@example.com';
   assert.throws(()=>verify(a),/SUBSCRIPTION_MISMATCH/);
