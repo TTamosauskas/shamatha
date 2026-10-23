@@ -7,7 +7,8 @@
   const sb = base.getClient();
   const originalRequest = base.request.bind(base);
   const AUDIO_BUCKET = 'shamatha-audio';
-  const SIGNED_SECONDS = 6 * 60 * 60;
+  // Keep media links short-lived once billing gating is active.
+  const SIGNED_SECONDS = window.SHAMATHA_CONFIG?.billingUiEnabled===true ? 60 : 6 * 60 * 60;
   const CACHE_MS = 5000;
   const DAY_MS = 86400000;
   const TZ = 'America/Sao_Paulo';
@@ -300,6 +301,14 @@
     const profile = profileResult.data;
     const status = profile.access_status || (profile.access_granted ? 'approved' : 'pending');
     if (profile.role !== 'editor' && status !== 'approved') fail('Seu acesso ao conteúdo aguarda a liberação do editor.', 403);
+    // Fast data route must obey the same server authorization as normal app-data.
+    // Without this check, an unpaid student would see an empty journey instead
+    // of being directed to the subscription screen after the RLS switch is on.
+    if (profile.role !== 'editor' && window.SHAMATHA_CONFIG?.billingUiEnabled===true) {
+      const {data:canRead,error:accessError}=await sb.rpc('shamatha_my_content_access');
+      if(accessError)fail('Verificação do acesso indisponível.',503);
+      if(canRead!==true)fail('PAYMENT_REQUIRED',402);
+    }
     if (stagesResult.error) fail(stagesResult.error.message || 'Falha ao carregar as etapas.');
     if (settingsResult.error) fail(settingsResult.error.message || 'Falha ao carregar as configurações.');
     if (progressResult.error && profile.role !== 'editor') fail(progressResult.error.message || 'Falha ao carregar o progresso.');
@@ -375,6 +384,11 @@
   }
 
   async function childAudio(stageId) {
+    if(window.SHAMATHA_CONFIG?.billingUiEnabled===true){
+      const {data:allowed,error}=await sb.rpc('shamatha_my_content_access');
+      if(error)fail('Verificação de acesso indisponível.',503);
+      if(allowed!==true)fail('PAYMENT_REQUIRED',402);
+    }
     const cached = childAudioCache.get(stageId);
     if (cached && cached.expiresAt > Date.now()) return { audioUrl:cached.audioUrl };
 
@@ -395,7 +409,7 @@
 
     childAudioCache.set(stageId, {
       audioUrl,
-      expiresAt:Date.now() + (SIGNED_SECONDS - 300) * 1000
+      expiresAt:Date.now() + (Math.max(1, SIGNED_SECONDS - 10)) * 1000
     });
     return { audioUrl };
   }
