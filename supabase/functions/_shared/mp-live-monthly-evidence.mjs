@@ -62,7 +62,14 @@ export function verifyLiveMonthlyPayments({
        !exactly180(payment.transaction_amount)||payment.currency_id!=='BRL'))
        throw Error('PAYMENT_MISMATCH');
     const status=String(payment?.status||'pending').toLowerCase();
-    const approved=!!payment&&status==='approved'&&
+    // Mercado Pago can keep status='approved' after a PARTIAL refund.
+    // Such a payment no longer represents the complete R$180 contracted fee.
+    const detail=String(payment?.status_detail||'').toLowerCase();
+    const refunded=Number(payment?.transaction_amount_refunded||0)>0||
+      (Array.isArray(payment?.refunds)&&payment.refunds.length>0)||
+      (detail!==''&&detail!=='accredited')||
+      String(a.invoice.payment?.status_detail||'').toLowerCase()==='partially_refunded';
+    const approved=!!payment&&status==='approved'&&!refunded&&
       a.invoice.payment?.status==='approved'&&a.invoice.status==='processed';
     const approvedAt=toTime(payment?.date_approved);
     const valid=approved&&approvedAt!==null&&approvedAt>=a.debit&&approvedAt<end;
