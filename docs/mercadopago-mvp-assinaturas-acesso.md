@@ -34,8 +34,7 @@ paginação incompleta e divergência de titular entram em revisão manual e
 aceito antes da contratação e ser revista pelo responsável.
 
 O MVP não promete Webhook imediato. A verificação pode ocorrer no retorno
-à conta, no login ou na rotina periódica preparada nesta branch; nenhum
-desses recursos está implantado em produção. Estornos externos serão
+à conta, no login ou na rotina periódica preparada nesta branch; as funções estão implantadas com travas desligadas; nenhuma conciliação automática foi agendada. Estornos externos serão
 detectados na próxima conciliação bem-sucedida, não instantaneamente.
 
 ## Status técnico desta branch
@@ -45,7 +44,7 @@ detectados na próxima conciliação bem-sucedida, não instantaneamente.
   ausente do repositório.
 - \`shamatha-reconcile-subscription\`: handler de verificação **não
   implantado**, \`SHAMATHA_BILLING_RECONCILE_ENABLED=false\` por padrão.
-- \`assets/config.js\`: três flags públicas **false**. A interface fica
+- \`assets/config.js\`: quatro flags públicas **false**. A interface fica
   informativa e não cria cobrança até ativação coordenada.
 - \`20261023201342_billing_mvp_staged_gate.sql\`: migração preparatória
   que cria \`private.billing_access_control\` com \`enforce_payment=false\`,
@@ -64,7 +63,7 @@ detectados na próxima conciliação bem-sucedida, não instantaneamente.
 1. Revisar e mesclar o PR com CI concluída.
 2. Aplicar e verificar a migração **desligada**. Checar que nenhum usuário
    antigo perdeu acesso e nenhum usuário foi aprovado automaticamente.
-3. Implantar as duas Edge Functions em modo **desativado**, com JWT ligado;
+3. Implantar funções preparatórias com JWT ligado para login, reconciliação e cancelamento; a função periódica verifica segredo Bearer próprio;
    configurar individualmente os segredos de vendedor PRODUÇÃO apenas pelo
    Supabase Secrets (jamais no GitHub ou no chat).
 4. Testar em um ambiente ou janela de homologação controlada, sem disparar
@@ -77,7 +76,7 @@ detectados na próxima conciliação bem-sucedida, não instantaneamente.
 6. Só depois ativar sincronizadamente as flags de criação, reconciliação
    e checkout no site. Verificar login e conteúdo com conta real controlada.
 7. Monitorar reembolsos/chargeback, erro de integração, expiração e
-   e-mails de suporte. Fluxos com 12+ faturas ou pagamento deslocado
+   e-mails de suporte. Fluxos com histórico acima de 240 faturas ou pagamento deslocado
    necessitam paginação/revisão manual antes de operação em escala.
 
 **NENHUMA mudança do merge por si só ativa dinheiro, checkout, RLS
@@ -114,7 +113,7 @@ administrativa até ativação controlada.
 
 ### Operações
 
-Funções candidatas de produção: `shamatha-create-subscription` (criação), `shamatha-reconcile-subscription` (consulta autenticada por aluno), `shamatha-cancel-subscription` (cancelamento autenticado por aluno). Todas devem permanecer **não implantadas** até validação integrada.
+Funções candidatas de produção: `shamatha-create-subscription` (criação travada em código), `shamatha-reconcile-subscription` (verificação por aluno), `shamatha-cancel-subscription` (cancelamento) e `shamatha-billing-periodic` (verificação recorrente protegida por segredo). As quatro foram implantadas em **23/10/2026**, sem habilitar cobranças ou agendamento.
 
 Na ativação efetiva, operar e testar separadamente os quatro switches privados:
 - `SHAMATHA_BILLING_PRODUCTION_ENABLED`, `SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED`, `SHAMATHA_MP_PRODUCTION_CREATE_ENABLED` (criação).
@@ -237,3 +236,73 @@ limpeza ao constatar cancelamento direto no Mercado Pago.
   autenticada se a flag estiver ativa. O redirecionamento e o parâmetro da
   URL não liberam o aluno; somente o pagamento comprovado altera cobertura.
   Em caso de atraso na confirmação, permanece disponível a verificação manual.
+
+
+## Situação verificada em 23/10/2026 — preparação aplicada (SEM cobranças)
+
+O responsável confirmou a proposta comercial de R$ 180/mês nesta conversa,
+**exclusivamente para dar continuidade à homologação**. Isto **NÃO** é
+aprovação final para iniciar cobranças de alunos. A ativação final exige
+autorização explícita e novo checklist técnico.
+
+O Supabase principal recebeu a migração `billing_mvp_staged_gate` com versão
+**20261023201342**. A migração existente no PR foi renomeada para
+`supabase/migrations/20261023201342_billing_mvp_staged_gate.sql`, para
+manter o histórico SQL consistente.
+
+Verificações realizadas por leitura de banco: `enforce_payment=false`,
+2 perfis existentes, 2 isenções, 0 assinaturas de produção e 0 pagamentos.
+A função de consulta `public.shamatha_my_content_access()` não pode ser
+executada por `anon`; o papel `authenticated` só recebe um booleano
+para o próprio usuário. Ninguém tem acesso direto à tabela privada de
+controle financeiro. O novo `SECURITY DEFINER` público é deliberado,
+sem parâmetros e consulta apenas `auth.uid()`; acompanhar o aviso do
+advisor de segurança e reavaliar periodicamente.
+
+Edge Functions implantadas e versões iniciais no Supabase principal:
+- `shamatha-create-subscription`: `verify_jwt=true`, trava
+  **compilada** `PRELAUNCH_CHECKOUT_LOCKED=true`, que não pode ser
+  desfeita com variáveis de ambiente e retorna indisponibilidade antes
+  de qualquer chamada de criação ao Mercado Pago.
+- `shamatha-reconcile-subscription`: `verify_jwt=true`, depende de
+  `SHAMATHA_BILLING_RECONCILE_ENABLED=true`, ainda não acionado.
+- `shamatha-cancel-subscription`: `verify_jwt=true`, depende de
+  `SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED=true`.
+- `shamatha-billing-periodic`: `verify_jwt=false` APENAS porque o
+  código exige um segredo Bearer privado de no mínimo 32 caracteres
+  e duas flags explicitamente ligadas ANTES de consultar o banco.
+  **Nenhum cron foi criado nem autorizado.**
+
+A configuração pública da página continua com as quatro flags OFF,
+o PR #67 permanece rascunho, e a branch `main`/GitHub Pages não foi
+atualizada por estes deploys. O PR #68 contém checkout alternativo,
+não deve ser mesclado junto ao #67.
+
+### Etapas manuais restantes para homologação integrada
+
+1. Em **Supabase Dashboard → projeto Shamatha → Edge Functions → Secrets**,
+   armazenar **sem enviar a ninguém**:
+   `SHAMATHA_MP_PRODUCTION_ACCESS_TOKEN` (token de produção do vendedor) e
+   `SHAMATHA_MP_PRODUCTION_SELLER_ID` (ID numérico da conta real),
+   diferentes da conta vendedora fictícia. Confirmar se já constam lá;
+   a conexão de administração não oferece inspeção de Secrets.
+2. **Manter DESLIGADAS**: `SHAMATHA_BILLING_PRODUCTION_ENABLED`,
+   `SHAMATHA_BILLING_FINAL_LAUNCH_APPROVED`,
+   `SHAMATHA_MP_PRODUCTION_CREATE_ENABLED`,
+   `SHAMATHA_BILLING_RECONCILE_ENABLED`,
+   `SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED` e
+   `SHAMATHA_BILLING_PERIODIC_ENABLED`.
+3. Revisar termos `shamatha-r180-monthly-v1` antes de cobrança real.
+   Executar testes integrados com aluno controlado e vendedor verdadeiro
+   sem utilizar checkout real indevidamente. Validar roteamento pós-cadastro,
+   usuário antigo isento, tentativa de checkout bloqueado, autorização de
+   conteúdo por RLS e cancelamento seguro.
+4. Quando houver aprovação final **separada** para cobrança real,
+   remover o bloqueio compilado no checkout por novo commit revisado,
+   testar pagamento controlado, ativar reconciliador, capturar snapshot
+   final de isenções e executar o SQL de ativação em transação.
+   Só depois configurar o Cron via Vault e os switches do site.
+5. Registrar e acompanhar falhas de reconciliação, chargebacks e estornos.
+
+**Nenhum segredo de produção foi escrito no GitHub ou nesta conversa.
+Nenhuma cobrança real ou migração de ativação foi executada.**
