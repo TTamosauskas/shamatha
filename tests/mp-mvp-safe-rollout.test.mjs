@@ -51,6 +51,10 @@ test('paid period cannot be decided solely by stored subscription state',()=>{
   assert.match(rls,/public\.billing_payments b/);
   assert.doesNotMatch(rls,/s\.access_status='active'/);
 });
+test('production checkout has immutable code lock until a separate final launch',()=>{
+  assert.match(checkout,/const PRELAUNCH_CHECKOUT_LOCKED = true/);
+  assert.match(checkout,/if \(PRELAUNCH_CHECKOUT_LOCKED\) halt\("CHECKOUT_AWAITING_FINAL_LAUNCH", 503\)/);
+});
 test('student checkout blocked without independently set provider secrets and flags',()=>{
   for(const key of [
     'SHAMATHA_MP_PRODUCTION_ACCESS_TOKEN',
