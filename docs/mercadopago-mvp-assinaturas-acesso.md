@@ -388,3 +388,49 @@ financeiro (aceite, criação de assinatura, fatura aprovada e recusada,
 acesso, estorno, cancelamento e rollback), revisar os termos exibidos
 ao aluno e obter autorização explícita adicional do responsável antes
 de qualquer cobrança real ou aplicação de `enforce_payment=true`.
+
+
+### Homologação segura ampliada — validação de checkout e estornos — 23/10/2026
+
+Após a confirmação de que o token Mercado Pago e o Seller ID são da mesma
+conta, foi feita uma revisão adicional **sem disparar cobranças**.
+
+1. `mp-live-checkout-proof.mjs` verifica na resposta de `POST /preapproval`
+   a identidade do vendedor (`collector_id`), referência única
+   `shamatha:production:<userId>:<intentId>`, e-mail do aluno,
+   **R$ 180 BRL**, recorrência **1 mês** e status inicialmente
+   `pending`. O link HTTPS deve pertencer ao Mercado Pago e carregar
+   exatamente o mesmo `preapproval_id`. A tentativa é mantida em
+   `needs_review` quando a resposta de criação é parcial ou divergente;
+   nunca é apresentada ao navegador nem reconhecida como pagamento.
+   A retomada de checkout anterior também valida essas propriedades.
+2. `mp-live-monthly-evidence.mjs`: um pagamento cuja API ainda retorne
+   `status=approved` **não libera cobertura** se `status_detail`
+   indicar estorno parcial, `transaction_amount_refunded > 0`, houver
+   registros de `refunds` ou a fatura indicar estorno parcial. Os
+   demais estados inválidos mantêm bloqueio. O valor faturado deve estar
+   integralmente quitado.
+3. O PostgreSQL principal foi auditado de forma **somente leitura**:
+   as políticas de `stages`, `progress`, `live_classes`, `settings`
+   e leitura privada de lembretes usam
+   `private.has_content_access()`. O requisito financeiro ainda está
+   desligado na tabela privada, portanto nenhuma conta antiga foi
+   bloqueada.
+4. Functions de checkout, conciliação do aluno e conciliação periódica
+   foram redeployadas **com travas preservadas**. Não houve criação
+   de agendamento, usuário de teste produtivo, assinatura ou pagamento.
+5. CI após os testes de segurança: **260 testes passaram, 0 falharam**
+   (GitHub Actions run `40023676197`). Isto verifica código e
+   fluxos simulados, **não** o ciclo financeiro de ponta a ponta na
+   conta Mercado Pago com pagamento real.
+
+**Bloqueios restantes antes de go-live:** testes controlados com aluno
+não isento e meios de pagamento de homologação, prova da fatura e do
+pagamento real sem concessão por callback, cancelamento, estorno,
+revogação no vencimento, revisão do texto contratual e uma autorização
+expressa separada para ativar a cobrança e executar a transação RLS.
+
+Referências consultadas:
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval/post
+- https://www.mercadopago.com.br/developers/pt/docs/subscriptions/integration-configuration/subscription-no-associated-plan/authorized-payments
+- https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/response-handling/query-results?scope=prod
