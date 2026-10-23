@@ -27,6 +27,13 @@ test('buyer identity mismatch fails closed',()=>{
   assert.throws(()=>audit({external_reference:'shamatha:production:'+userId+':wrong'}),/MP_SUBSCRIPTION_PROOF_FAILED/);
   assert.throws(()=>audit({}, {userId:'another-student'}),/MP_SUBSCRIPTION_PROOF_FAILED/);
 });
+test('provider may omit payer_email only after independent provider search',()=>{
+  assert.throws(()=>audit({payer_email:undefined}),/MP_SUBSCRIPTION_PROOF_FAILED/);
+  assert.deepEqual(audit({payer_email:undefined},{buyerVerified:true}),
+    {id:sid,status:'pending'});
+  assert.throws(()=>audit({payer_email:'other@example.com'},{buyerVerified:true}),
+    /MP_SUBSCRIPTION_PROOF_FAILED/);
+});
 test('merchant identity mismatch or fake sandbox merchant fails closed',()=>{
   assert.throws(()=>audit({collector_id:12345}),/MP_SUBSCRIPTION_PROOF_FAILED/);
   assert.throws(()=>audit({}, {sellerId:'3778352536'}),/MP_SUBSCRIPTION_PROOF_FAILED/);
