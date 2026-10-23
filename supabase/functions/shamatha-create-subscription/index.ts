@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.10";
 import { checkStudentCheckoutGate, priorSubscriptionCheckoutGate } from "../_shared/student-checkout-gates.mjs";
+import { verifyCreatedMonthlyPreapproval, verifiedMercadoPagoCheckoutUrl } from "../_shared/mp-live-checkout-proof.mjs";
 
 /**
  * PREPARATORY CODE ONLY — NOT DEPLOYED. PRODUCTION CHECKOUT DISABLED.
@@ -41,14 +42,6 @@ const admin = createClient(URL_SUPABASE, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-function validMercadoPagoCheckout(url: unknown): url is string {
-  if (typeof url !== "string") return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" &&
-      /(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(parsed.hostname);
-  } catch { return false; }
-}
 function validSubscriptionId(id: unknown): id is string {
   return typeof id === "string" && /^[a-zA-Z0-9_-]{12,64}$/.test(id);
 }
@@ -101,20 +94,21 @@ async function resumeExisting(intent: {
   if (intent.state !== "created" ||
       intent.terms_version !== TERMS_VERSION || !intent.terms_accepted_at ||
       !validSubscriptionId(intent.mp_preapproval_id) ||
-      !validMercadoPagoCheckout(intent.checkout_url)) {
+      !verifiedMercadoPagoCheckoutUrl(intent.checkout_url,intent.mp_preapproval_id)) {
     halt("EXISTING_ATTEMPT_REQUIRES_REVIEW", 409);
   }
   // Never hand back a paid/authorized link, and never create another subscription.
   const remote = await mpGet("https://api.mercadopago.com/preapproval/" +
     encodeURIComponent(intent.mp_preapproval_id));
-  if (String(remote.id || "") !== intent.mp_preapproval_id ||
-      String(remote.collector_id || "") !== PROD_SELLER_ID ||
-      Number(remote.auto_recurring?.transaction_amount) !== 180 ||
-      remote.auto_recurring?.currency_id !== "BRL" ||
-      String(remote.external_reference ?? "") !== "shamatha:production:" + userId + ":" + intent.id ||
-      String(remote.payer_email ?? "").toLowerCase() !== userEmail.toLowerCase()) {
-    halt("EXISTING_CHECKOUT_NEEDS_REVIEW", 409);
-  }
+  try {
+    const proof=verifyCreatedMonthlyPreapproval({
+      remote,sellerId:PROD_SELLER_ID,userId,intentId:intent.id,
+      payerEmail:userEmail,requirePending:false
+    });
+    if(proof.id!==intent.mp_preapproval_id ||
+       (remote.init_point&&remote.init_point!==intent.checkout_url))
+      halt("EXISTING_CHECKOUT_NEEDS_REVIEW",409);
+  }catch(_error){halt("EXISTING_CHECKOUT_NEEDS_REVIEW",409);}
   if (remote.status !== "pending") {
     return { state: "awaiting_reconciliation", checkoutUrl: null, reused: true };
   }
@@ -197,9 +191,18 @@ async function startCheckout(userId: string, userEmail: string) {
       halt("PROVIDER_CREATION_REQUIRES_REVIEW", 502);
     }
     const remote = await response.json();
-    if (!validSubscriptionId(remote?.id) || !validMercadoPagoCheckout(remote?.init_point)) {
-      errorCode = "MP_INVALID_SUBSCRIPTION_RESPONSE";
-      halt("PROVIDER_CREATION_REQUIRES_REVIEW", 502);
+    // Refuse every partial or inconsistent Mercado Pago creation response.
+    // No local subscription or checkout link is issued until validated.
+    try {
+      verifyCreatedMonthlyPreapproval({
+        remote,sellerId:PROD_SELLER_ID,userId,intentId:intent.id,
+        payerEmail:userEmail,requirePending:true
+      });
+      if(!verifiedMercadoPagoCheckoutUrl(remote.init_point,remote.id))
+        throw Error("INVALID_PROVIDER_CHECKOUT_LINK");
+    }catch(_proofError){
+      errorCode="MP_SUBSCRIPTION_PROOF_FAILED";
+      halt("PROVIDER_CREATION_REQUIRES_REVIEW",502);
     }
 
     // Persist identity link as pending. Only provider-verified invoices may
