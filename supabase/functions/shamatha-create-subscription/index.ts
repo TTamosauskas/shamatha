@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.10";
 import { checkStudentCheckoutGate, priorSubscriptionCheckoutGate } from "../_shared/student-checkout-gates.mjs";
 import { verifyCreatedMonthlyPreapproval, verifiedMercadoPagoCheckoutUrl } from "../_shared/mp-live-checkout-proof.mjs";
+import { verifyProviderBuyer } from "../_shared/mp-live-buyer-proof.mjs";
 
 /**
  * PREPARATORY CODE, DEPLOYED WITH PRELAUNCH_CHECKOUT_LOCKED=true.
@@ -65,6 +66,15 @@ async function mpGet(url: string) {
   }
 }
 
+async function verifiedBuyer(remote: unknown, buyerEmail: string) {
+  return await verifyProviderBuyer({
+    remote,payerEmail:buyerEmail,
+    fetchPage:({payerEmail,offset,limit})=>mpGet(
+      "https://api.mercadopago.com/preapproval/search?payer_email="+
+      encodeURIComponent(payerEmail)+"&limit="+limit+"&offset="+offset)
+  });
+}
+
 async function requireStudent(req: Request) {
   const jwt = String(req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!jwt) halt("AUTH_REQUIRED", 401);
@@ -102,9 +112,10 @@ async function resumeExisting(intent: {
   const remote = await mpGet("https://api.mercadopago.com/preapproval/" +
     encodeURIComponent(intent.mp_preapproval_id));
   try {
+    const buyerVerified=await verifiedBuyer(remote,userEmail);
     const proof=verifyCreatedMonthlyPreapproval({
       remote,sellerId:PROD_SELLER_ID,userId,intentId:intent.id,
-      payerEmail:userEmail,requirePending:false
+      payerEmail:userEmail,requirePending:false,buyerVerified
     });
     if(proof.id!==intent.mp_preapproval_id ||
        (remote.init_point&&remote.init_point!==intent.checkout_url))
@@ -195,9 +206,10 @@ async function startCheckout(userId: string, userEmail: string) {
     // Refuse every partial or inconsistent Mercado Pago creation response.
     // No local subscription or checkout link is issued until validated.
     try {
+      const buyerVerified=await verifiedBuyer(remote,userEmail);
       verifyCreatedMonthlyPreapproval({
         remote,sellerId:PROD_SELLER_ID,userId,intentId:intent.id,
-        payerEmail:userEmail,requirePending:true
+        payerEmail:userEmail,requirePending:true,buyerVerified
       });
       if(!verifiedMercadoPagoCheckoutUrl(remote.init_point,remote.id))
         throw Error("INVALID_PROVIDER_CHECKOUT_LINK");
