@@ -5,7 +5,7 @@ import { rotatingBillingBatchOffset } from "../_shared/mp-live-invoice-pages.mjs
 
 /**
  * Periodically refreshes payment status without requiring the student to log in.
- * NOT deployed/scheduled. Requires BOTH private kill switches and a separately
+ * Deployed in disabled mode, NOT scheduled. Requires BOTH private kill switches and a separately
  * configured >=32-character cron secret. Does not create/modify any MP charges.
  *
  * Deploy with JWT verification disabled ONLY for this server-to-server endpoint;
