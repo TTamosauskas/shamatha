@@ -1,5 +1,6 @@
 import { verifyLiveMonthlyPayments } from "./mp-live-monthly-evidence.mjs";
 import { collectAuthorizedInvoicePages, currentCycleCandidatePaymentIds } from "./mp-live-invoice-pages.mjs";
+import { verifyProviderBuyer } from "./mp-live-buyer-proof.mjs";
 
 /**
  * Shared server-only reconciliation. Caller MUST authorize the Supabase student
@@ -61,6 +62,14 @@ export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=D
   if(intentError||!intent||String(intent.mp_preapproval_id)!==sub.mp_preapproval_id)
     stop('UNVERIFIED_CHECKOUT_LINK',409);
 
+  // Official subscription GET responses may omit payer_email. In that case,
+  // prove ownership by searching subscriptions through the provider's
+  // authenticated payer_email filter; never trust browser-supplied claims.
+  const buyerVerified=await verifyProviderBuyer({
+    remote,payerEmail:String(email).toLowerCase(),
+    fetchPage:({payerEmail,offset,limit})=>get('/preapproval/search?payer_email='+
+      encodeURIComponent(payerEmail)+'&limit='+limit+'&offset='+offset)
+  });
   const invoiceSearch=await collectAuthorizedInvoicePages({
     getPage:({limit,offset})=>get('/authorized_payments/search?preapproval_id='+
       encodeURIComponent(sub.mp_preapproval_id)+'&limit='+limit+'&offset='+offset),
@@ -76,7 +85,7 @@ export async function reconcileLiveStudent({sb,userId,email,token,seller,nowMs=D
   const audit=verifyLiveMonthlyPayments({
     userId,email:String(email).toLowerCase(),sellerId:seller,
     localSubscriptionId:intent.id,providerSubscription:remote,
-    invoiceSearch,paymentsById,nowMs
+    invoiceSearch,paymentsById,nowMs,buyerVerified
   });
   for(const row of audit.rows){
     const {error}=await sb.from('billing_payments')
