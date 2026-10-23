@@ -4,8 +4,9 @@ import { checkStudentCheckoutGate, priorSubscriptionCheckoutGate } from "../_sha
 import { verifyCreatedMonthlyPreapproval, verifiedMercadoPagoCheckoutUrl } from "../_shared/mp-live-checkout-proof.mjs";
 
 /**
- * PREPARATORY CODE ONLY — NOT DEPLOYED. PRODUCTION CHECKOUT DISABLED.
- * No MP charge should occur until owner explicitly approves go-live,
+ * PREPARATORY CODE, DEPLOYED WITH PRELAUNCH_CHECKOUT_LOCKED=true.
+ * No MP charge can occur through this endpoint until a separately reviewed
+ * go-live commit removes the immutable code lock. Owner must approve go-live,
  * authenticated provider notifications, reconciliation and entitlement tests.
  *
  * POST requires authenticated, email-confirmed Supabase STUDENT account.
