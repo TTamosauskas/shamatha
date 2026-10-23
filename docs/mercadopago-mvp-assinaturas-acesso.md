@@ -434,3 +434,52 @@ Referências consultadas:
 - https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval/post
 - https://www.mercadopago.com.br/developers/pt/docs/subscriptions/integration-configuration/subscription-no-associated-plan/authorized-payments
 - https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/response-handling/query-results?scope=prod
+
+
+### Homologação sem cobrança — reconciliação de titularidade e prova RLS
+
+**Data: 23/10/2026.** A documentação oficial do Mercado Pago demonstra que as
+respostas de `POST /preapproval` e `GET /preapproval/{id}` podem omitir
+`payer_email` apesar de sua exigência no formulário de criação. A versão
+anterior poderia rejeitar uma contratação legítima depois da criação remota
+e impedir o aluno de conciliar um pagamento válido.
+
+- Adicionado `mp-live-buyer-proof.mjs`: quando `payer_email` aparece
+  e coincide, usa-se esse valor; quando ausente, consulta-se
+  **GET /preapproval/search?payer_email=<e-mail autenticado>** com
+  autenticação do vendedor, paginação controlada (até 100 resultados)
+  e exigência do ID exato da assinatura. Resposta inconsistente,
+  vazia, truncada, não filtrada ou sem contrato correspondente **nega
+  acesso**, sem atribuir assinatura ao usuário por mera referência de URL.
+  Um resultado ainda não indexado no provedor também falha fechado e
+  exige revisão/reconciliação posterior.
+- O checkout inicial, sua retomada e a conciliação de faturas usam a
+  mesma prova independente, quando o fornecedor não incluir o e-mail.
+  `verifyLiveMonthlyPayments` ainda rejeita e-mail explícito errado,
+  mesmo que outra prova seja marcada verdadeira. Ao criar ou liberar,
+  continuam obrigatórias provas do vendedor, preço, moeda, ciclo,
+  ID e aprovação individual do pagamento.
+- Banco em produção verificado **por consultas de leitura**: a função
+  `public.shamatha_my_content_access()` retornou `true` para uma
+  identidade administrativa aprovada e `false` para um UUID sem
+  perfil. Nenhum usuário, pagamento ou contrato de teste foi inserido.
+- As três Edge Functions dependentes foram reimplantadas após os testes,
+  com checkout **travado em código** e conciliação periódica **OFF**.
+  A chamada HTTP inofensiva ao agendador retornou HTTP **503**
+  `BILLING_PERIODIC_DISABLED`, comprovando o bloqueio em execução.
+- Último teste automático após estas correções:
+  **274 testes, 274 passaram, 0 falhas** no GitHub Actions
+  [40027030393](https://github.com/TTamosauskas/shamatha/actions/runs/40027030393).
+- A preparação não equivale ao teste financeiro de ponta a ponta:
+  nenhuma criação `POST /preapproval` de produção, cobrança, estorno
+  ou cancelamento real foi executado.
+
+**Pendente antes do go-live:** homologação controlada com aluno comprador
+não isento, teste de assinatura/pagamento e estorno, revisão jurídica das
+condições exibidas e autorização adicional e explícita do responsável.
+Ainda não ativar `enforce_payment`, flags públicas nem cron.
+
+Fontes Mercado Pago:
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval/post
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-preapproval/get
+- https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/search-preapproval/get
