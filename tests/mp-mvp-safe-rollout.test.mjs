@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8');
 const cfg=read('assets/config.js');
-const rls=read('supabase/migrations/20261022110000_billing_mvp_staged_gate.sql');
+const rls=read('supabase/migrations/20261023201342_billing_mvp_staged_gate.sql');
 const activate=read('ops/BILLING_MVP_ACTIVATE_ONLY_AFTER_APPROVAL.sql');
 const checkout=read('supabase/functions/shamatha-create-subscription/index.ts');
 const reconcile=read('supabase/functions/shamatha-reconcile-subscription/index.ts');
