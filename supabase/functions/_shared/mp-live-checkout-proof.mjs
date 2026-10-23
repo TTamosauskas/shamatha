@@ -10,7 +10,7 @@ export function verifiedMercadoPagoCheckoutUrl(url,preapprovalId) {
   try {
     const u=new URL(url);
     return u.protocol==='https:'&&
-      /(^|\\.)mercadopago\\.(com|com\\.br|com\\.ar|com\\.mx|com\\.uy)$/.test(u.hostname)&&
+      /(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(u.hostname)&&
       u.username===''&&u.password===''&&
       u.searchParams.get('preapproval_id')===preapprovalId;
   }catch{return false;}
@@ -20,7 +20,7 @@ export function verifyCreatedMonthlyPreapproval({
 }={}) {
   if(!validId(userId)||!validId(intentId)||!numeric(sellerId)||
      sellerId==='3778352536'||typeof payerEmail!=='string'||
-     !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(payerEmail)||
+     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payerEmail)||
      !remote||!validId(remote.id)||
      String(remote.collector_id)!==sellerId||
      String(remote.external_reference)!=='shamatha:production:'+userId+':'+intentId||
