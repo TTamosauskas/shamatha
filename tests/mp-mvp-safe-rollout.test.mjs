@@ -51,6 +51,18 @@ test('paid period cannot be decided solely by stored subscription state',()=>{
   assert.match(rls,/public\.billing_payments b/);
   assert.doesNotMatch(rls,/s\.access_status='active'/);
 });
+test('live checkout validates provider seller, owner, monthly value and exact payment link before database insert',()=>{
+  const proof=read('supabase/functions/_shared/mp-live-checkout-proof.mjs');
+  assert.match(checkout,/verifyCreatedMonthlyPreapproval/);
+  assert.match(checkout,/verifiedMercadoPagoCheckoutUrl/);
+  assert.match(proof,/String\(remote\.collector_id\)/);
+  assert.match(proof,/String\(remote\.external_reference\)/);
+  assert.match(proof,/Number\(remote\.auto_recurring\?\.transaction_amount\)!==180/);
+  assert.match(proof,/auto_recurring\?\.frequency_type!=='months'/);
+  assert.match(proof,/searchParams\.get\('preapproval_id'\)/);
+  assert.ok(checkout.indexOf('verifyCreatedMonthlyPreapproval({',checkout.indexOf('const remote = await response.json()'))<
+    checkout.indexOf('billing_subscriptions").insert({'));
+});
 test('production checkout has immutable code lock until a separate final launch',()=>{
   assert.match(checkout,/const PRELAUNCH_CHECKOUT_LOCKED = true/);
   assert.match(checkout,/if \(PRELAUNCH_CHECKOUT_LOCKED\) halt\("CHECKOUT_AWAITING_FINAL_LAUNCH", 503\)/);
