@@ -16,7 +16,7 @@ export function verifiedMercadoPagoCheckoutUrl(url,preapprovalId) {
   }catch{return false;}
 }
 export function verifyCreatedMonthlyPreapproval({
-  remote,sellerId,userId,intentId,payerEmail,requirePending=true
+  remote,sellerId,userId,intentId,payerEmail,requirePending=true,buyerVerified=false
 }={}) {
   if(!validId(userId)||!validId(intentId)||!numeric(sellerId)||
      sellerId==='3778352536'||typeof payerEmail!=='string'||
@@ -24,7 +24,11 @@ export function verifyCreatedMonthlyPreapproval({
      !remote||!validId(remote.id)||
      String(remote.collector_id)!==sellerId||
      String(remote.external_reference)!=='shamatha:production:'+userId+':'+intentId||
-     String(remote.payer_email||'').toLowerCase()!==payerEmail.toLowerCase()||
+     (remote.payer_email!==null&&remote.payer_email!==undefined&&
+       String(remote.payer_email).trim()!==''&&
+       String(remote.payer_email).toLowerCase()!==payerEmail.toLowerCase())||
+     ((!remote.payer_email||String(remote.payer_email).trim()==='')&&
+       buyerVerified!==true)||
      Number(remote.auto_recurring?.transaction_amount)!==180||
      remote.auto_recurring?.currency_id!=='BRL'||
      Number(remote.auto_recurring?.frequency)!==1||
