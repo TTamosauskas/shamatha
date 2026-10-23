@@ -17,7 +17,7 @@ const nextFromAnchor=(anchor,n)=>{
 };
 export function verifyLiveMonthlyPayments({
   userId,email,sellerId,localSubscriptionId,providerSubscription,
-  invoiceSearch,paymentsById={},nowMs=null
+  invoiceSearch,paymentsById={},nowMs=null,buyerVerified=false
 }={}){
   if(!validId(userId)||!validId(localSubscriptionId)||!/^\d+$/.test(String(sellerId??''))||
       typeof email!=='string'||!email.includes('@'))throw Error('INVALID_OWNER');
@@ -25,7 +25,10 @@ export function verifyLiveMonthlyPayments({
   if(!s||!validId(String(s.id??''))||
       String(s.collector_id)!==String(sellerId)||
       String(s.external_reference)!=='shamatha:production:'+userId+':'+localSubscriptionId||
-      String(s.payer_email||'').toLowerCase()!==email.toLowerCase()||
+      (s.payer_email!==null&&s.payer_email!==undefined&&
+       String(s.payer_email).trim()!==''&&
+       String(s.payer_email).toLowerCase()!==email.toLowerCase())||
+      ((!s.payer_email||String(s.payer_email).trim()==='')&&buyerVerified!==true)||
       !exactly180(s.auto_recurring?.transaction_amount)||
       s.auto_recurring?.currency_id!=='BRL'||
       Number(s.auto_recurring?.frequency)!==1||
