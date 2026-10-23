@@ -335,3 +335,29 @@ apenas por `pg_net`, em uma Edge Function já existente.
 
 Nenhum pagamento real foi iniciado, nenhuma restrição RLS de pagamento
 foi habilitada e nenhum segredo de produção foi exposto.
+
+
+### Rechecagem Seller ID — 23/10/2026 (após correção do proprietário)
+
+Uma segunda leitura foi executada no Supabase por rota diagnóstica efêmera,
+protegida por segredo de uso único, sem alterações de conta ou cobranças:
+
+- `SHAMATHA_MP_PRODUCTION_SELLER_ID` agora está em **formato numérico válido**.
+- O token autentica `GET https://api.mercadolibre.com/users/me`, mas
+  `String(me.id) !== SHAMATHA_MP_PRODUCTION_SELLER_ID`.
+- Resposta do teste: **SELLER_MISMATCH**. Por isso, **não é seguro**
+  iniciar checkout ou considerar vendedor produtivo verificado.
+- A rota diagnóstica foi retirada e a função original
+  `shamatha-billing-periodic` foi reimplantada com o agendador OFF.
+- Recomendar conferência no painel Mercado Pago Developers: abrir a
+  **mesma aplicação/conta** cujo Access Token foi cadastrado, conferir o
+  **User ID do vendedor** (não Client ID ou Application ID), e garantir
+  credenciais da seção **Produção**. Caso o token seja de outra aplicação,
+  corrigir ambos os Secrets de forma coordenada.
+- Referência oficial: resposta de assinaturas retorna
+  `collector_id` como o **User ID do vendedor**,
+  https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-preapproval/get
+
+Pós-verificação: `enforce_payment=false`, nenhuma assinatura/pagamento
+de produção, nenhum job periódico de billing. Exige novo teste com
+**igualdade comprovada** antes de prosseguir ao checkout controlado.
