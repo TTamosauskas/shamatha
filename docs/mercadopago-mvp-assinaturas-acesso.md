@@ -39,11 +39,10 @@ detectados na próxima conciliação bem-sucedida, não instantaneamente.
 
 ## Status técnico desta branch
 
-- \`shamatha-create-subscription\`: handler **não implantado**, todas as 3
+- \`shamatha-create-subscription\`: handler **implantado, com trava compilada de pré-lançamento**, todas as 3
   flags de autorização/checkout OFF por padrão, conexão de vendedor produção
   ausente do repositório.
-- \`shamatha-reconcile-subscription\`: handler de verificação **não
-  implantado**, \`SHAMATHA_BILLING_RECONCILE_ENABLED=false\` por padrão.
+- \`shamatha-reconcile-subscription\`: handler de verificação **implantado, com conciliação desligada por padrão**, \`SHAMATHA_BILLING_RECONCILE_ENABLED=false\` por padrão.
 - \`assets/config.js\`: quatro flags públicas **false**. A interface fica
   informativa e não cria cobrança até ativação coordenada.
 - \`20261023201342_billing_mvp_staged_gate.sql\`: migração preparatória
@@ -227,7 +226,7 @@ limpeza ao constatar cancelamento direto no Mercado Pago.
   `shamatha-r180-monthly-v1`; o servidor autentica a conta e exige **ambos**
   os valores antes de criar qualquer assinatura. Nenhum valor, vendedor ou
   ID do estudante é aceito do corpo da requisição.
-- A migração preparatória adiciona à intenção de checkout
+- A migração preparatória já aplicada adiciona à intenção de checkout
   `terms_version` e `terms_accepted_at`, preenchidos no servidor como
   evidência da versão e horário do aceite. O contrato **precisa ser revisto e
   aprovado pelo proprietário antes de se usar essa versão para cobranças**.
