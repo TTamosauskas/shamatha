@@ -90,6 +90,13 @@ test('student payment verification blocked independently of checkout switch',()=
   assert.match(reconcile,/SHAMATHA_BILLING_RECONCILE_ENABLED/);
   assert.match(reconcile,/sb\.auth\.getUser\(jwt\)/);
 });
+test('buyer ownership is verified when the provider omits payer_email',()=>{
+  const proof=read('supabase/functions/_shared/mp-live-buyer-proof.mjs');
+  assert.match(core,/verifyProviderBuyer/);
+  assert.match(core,/preapproval\/search\?payer_email=/);
+  assert.match(checkout,/verifyProviderBuyer/);
+  assert.match(proof,/PAYER_SUBSCRIPTION_NOT_FOUND/);
+});
 test('server reconciler verifies each payment by provider ID',()=>{
   assert.match(reconcile,/reconcileLiveStudent/);
   assert.match(core,/\/v1\/payments\//);
