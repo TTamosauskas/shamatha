@@ -20,7 +20,7 @@ function mockModal({inFlight=false}={}){
   }]));
   const helperNames=['openCheckoutModal','showCheckoutModalError','closeCheckoutModal'];
   const definitions=helperNames.map(name=>{
-    const start=inline.indexOf('function '+name+'(){');
+    const start=inline.indexOf('function '+name+'(');
     assert.ok(start>0,'Missing helper '+name);
     const end=inline.indexOf('\n}',start);
     assert.ok(end>start);
