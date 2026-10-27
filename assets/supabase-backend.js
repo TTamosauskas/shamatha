@@ -54,7 +54,8 @@
       id: profile.id,
       email: profile.email,
       role: profile.role === 'editor' ? 'editor' : 'user',
-      accessGranted: Boolean(profile.access_granted),
+      accessStatus: profile.access_status || 'pending',
+      accessGranted: profile.access_status === 'approved' && Boolean(profile.access_granted),
       createdAt: profile.created_at ? new Date(profile.created_at).getTime() : Date.now()
     };
   }
@@ -181,7 +182,7 @@
     const sb = getClient();
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const { data, error } = await sb.from('profiles')
-        .select('id,email,role,access_granted,created_at')
+        .select('id,email,role,access_granted,access_status,created_at')
         .eq('id', user.id)
         .maybeSingle();
       if (error) throw new BackendError(readableError(error), 400, error);
@@ -189,6 +190,23 @@
       if (attempt < retries) await new Promise(resolve => setTimeout(resolve, 180 * (attempt + 1)));
     }
     throw new BackendError('O perfil da conta ainda está sendo criado. Tente entrar novamente.', 409);
+  }
+
+  async function gatedUser(profile) {
+    const user = publicUser(profile);
+    if (!user || CONFIG.billingUiEnabled !== true || profile.role === 'editor') return user;
+    const sb=getClient();
+    // Read-only provider sync at login. If it fails, never invent a payment:
+    // the database gate and last verified payment remain authoritative.
+    if (CONFIG.billingReconcileEnabled === true) {
+      try { await sb.functions.invoke('shamatha-reconcile-subscription', { body:{} }); }
+      catch (e) { console.warn('Não foi possível atualizar a cobrança; usando status confirmado.'); }
+    }
+    const {data,error}=await sb.rpc('shamatha_my_content_access');
+    if(error)throw new BackendError('Verificação do acesso indisponível.',503,error);
+    user.accessGranted=data===true;
+    user.billingEnforced=true;
+    return user;
   }
 
   async function currentAuth() {
@@ -206,8 +224,17 @@
     const { authUser, profile } = await currentAuth();
     if (!authUser || !profile) throw new BackendError('Sessão encerrada.', 401);
     if (editor && profile.role !== 'editor') throw new BackendError('Acesso restrito ao editor.', 403);
-    if (content && profile.role !== 'editor' && !profile.access_granted) {
-      throw new BackendError('Seu acesso ao conteúdo aguarda a liberação do editor.', 403);
+    if (content && profile.role !== 'editor') {
+      if (profile.access_status !== 'approved') {
+        throw new BackendError('Sua conta aguarda aprovação administrativa.',403);
+      }
+      if (CONFIG.billingUiEnabled === true) {
+        const {data,error}=await getClient().rpc('shamatha_my_content_access');
+        if(error)throw new BackendError('Verificação de acesso indisponível.',503,error);
+        if(data!==true)throw new BackendError('PAYMENT_REQUIRED',402);
+      } else if (!profile.access_granted) {
+        throw new BackendError('Seu acesso ao conteúdo aguarda a liberação do editor.',403);
+      }
     }
     return { authUser, profile };
   }
@@ -392,7 +419,7 @@
           confirmationRequired: true
         };
       }
-      return { user: publicUser(await profileForUser(data.user)) };
+      return { user: await gatedUser(await profileForUser(data.user)) };
     }
 
     if (path === '/api/login' && method === 'POST') {
@@ -401,7 +428,7 @@
         password: String(body.password || '')
       });
       if (error) throw new BackendError(readableError(error), 401, error);
-      return { user: publicUser(await profileForUser(data.user)) };
+      return { user: await gatedUser(await profileForUser(data.user)) };
     }
 
     if (path === '/api/logout' && method === 'POST') {
@@ -412,7 +439,7 @@
 
     if (path === '/api/me' && method === 'GET') {
       const { authUser, profile } = await currentAuth();
-      return { user: authUser ? publicUser(profile) : null, setupRequired: false };
+      return { user: authUser ? await gatedUser(profile) : null, setupRequired: false };
     }
 
     if (path === '/api/app-data' && method === 'GET') return appData();

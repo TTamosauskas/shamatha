@@ -60,6 +60,7 @@
     } catch (error) {
       if (error?.status === 401) location.href = './index.html';
       if (error?.status === 403) location.href = './index.html?pending=1';
+      if (error?.status === 402) location.href = './minha-assinatura.html?due=1';
       throw error;
     }
   }

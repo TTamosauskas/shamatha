@@ -32,7 +32,7 @@
     <a href="./index.html">Voltar ao acesso</a>
   </div>
   <section class="card" aria-labelledby="pageTitle">
-    <p class="eyebrow">Área do aluno · prévia de homologação</p>
+    <p class="eyebrow">Área do aluno · assinatura mensal</p>
     <h1 id="pageTitle">Minha assinatura</h1>
     <p class="lead">Consulte o estado da sua assinatura e as informações registradas para sua conta.</p>
 
@@ -50,26 +50,45 @@
           <div><dt>Último período pago registrado até</dt><dd id="paidThrough">Não informado</dd></div>
         </dl>
       </div>
-      <div class="notice">
-        <strong>Cobrança real ainda desativada.</strong>
-        Esta página é apenas uma prévia. Ainda não é possível pagar, regularizar ou ativar uma assinatura pelo Shamatha.
-        A situação apresentada é informativa e não modifica o acesso ao conteúdo.
+      <div class="notice" id="billingNotice">
+        <strong>Assinaturas ainda em preparação.</strong>
+        A cobrança real permanece desativada. Nenhum pagamento será iniciado nesta fase.
+      </div>
+      <div class="notice" id="billingContract" hidden>
+        <strong>Condições da mensalidade:</strong> R$ 180,00 por mês em cobrança recorrente pelo Mercado Pago.
+        Cada pagamento aprovado, confirmado pelo Shamatha e vinculado à sua conta cobre um mês
+        de serviço a partir do débito inicial, com vencimento no mesmo dia do mês seguinte
+        (ou no último dia do mês quando necessário). O cancelamento impede novas renovações
+        e preserva o período já quitado; uma cobrança recusada não renova o acesso.
+        Contestações e estornos poderão suspender a cobertura após verificação.
+        O acesso à trilha também depende da aprovação administrativa.
+        <label style="display:block;margin-top:12px">
+          <input id="acceptTerms" type="checkbox">
+          Li e concordo com as condições da assinatura recorrente.
+        </label>
       </div>
       <div class="actions">
         <button id="refreshStatus" type="button">Atualizar situação</button>
-        <button type="button" disabled title="Pagamento indisponível até aprovação da ativação real">Pagar / regularizar — indisponível</button>
+        <button id="verifyPayment" type="button" hidden>Verificar pagamento</button>
+        <button id="cancelSubscription" type="button" hidden>Cancelar renovação automática</button>
+        <button id="startSubscription" type="button" disabled>Assinar por R$ 180/mês — indisponível</button>
       </div>
     </div>
   </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20260827-1450"></script>
-<script src="./assets/supabase-backend.js?v=20261019-2"></script>
+<script src="./assets/config.js?v=20261022-mvp1"></script>
+<script src="./assets/supabase-backend.js?v=20261022-mvp1"></script>
 <script type="module">
 import { formatSubscriptionState } from './assets/subscription-status-view.mjs';
 
 const el=id=>document.getElementById(id);
 let loading=false;
+let authenticatedProfile=null;
+let currentView=null;
+let checkoutReturnHandled=false;
+const flags=window.SHAMATHA_CONFIG||{};
+const TERMS_VERSION='shamatha-r180-monthly-v1';
 function say(text){el('statusMessage').textContent=text;}
 function administrativeLabel(value){
   return value==='approved'?'Aprovado':value==='suspended'?'Suspenso':'Pendente';
@@ -98,11 +117,23 @@ async function refresh(){
       return;
     }
     const id=auth.user.id;
+    // The return URL is a navigation hint only. It NEVER grants content;
+    // all payment evidence must be independently rechecked by the server.
+    let returnVerificationFailed=false;
+    if(!checkoutReturnHandled &&
+       new URLSearchParams(location.search).get('checkout')==='return' &&
+       flags.billingReconcileEnabled===true){
+      checkoutReturnHandled=true;
+      try {
+        const {error}=await sb.functions.invoke('shamatha-reconcile-subscription',{body:{}});
+        if(error)returnVerificationFailed=true;
+      }catch(e){returnVerificationFailed=true;}
+    }
     const [profile,exemption,subscriptions]=await Promise.all([
       sb.from('profiles').select('id,email,role,access_status').eq('id',id).maybeSingle(),
       sb.from('billing_exemptions').select('user_id').eq('user_id',id).maybeSingle(),
       sb.from('billing_subscriptions')
-        .select('environment,access_status,paid_through,created_at')
+        .select('environment,provider_status,access_status,paid_through,created_at')
         .eq('user_id',id).order('created_at',{ascending:false}).limit(20)
     ]);
     if(profile.error||exemption.error||subscriptions.error) {
@@ -122,8 +153,28 @@ async function refresh(){
     el('billingStatus').textContent=view.label;
     el('billingDescription').textContent=view.message;
     el('paidThrough').textContent=humanDate(view.paidThrough);
+    authenticatedProfile=profile.data;
+    currentView=view;
+    const checkoutReady=flags.billingCheckoutEnabled===true &&
+      profile.data.role==='student' && profile.data.access_status!=='suspended' &&
+      !exemption.data && !(view.paidThrough && Date.parse(view.paidThrough)>Date.now());
+    el('billingContract').hidden=!checkoutReady;
+    el('startSubscription').hidden=!checkoutReady;
+    el('startSubscription').disabled=!checkoutReady || !el('acceptTerms').checked;
+    el('startSubscription').textContent=checkoutReady?'Assinar / regularizar — R$ 180/mês':'Assinatura indisponível';
+    el('verifyPayment').hidden=flags.billingReconcileEnabled!==true;
+    const canCancel = flags.billingCancelEnabled===true &&
+      profile.data.role==='student' && !exemption.data &&
+      (subscriptions.data||[]).some(s=>s.environment==='production' &&
+        ['pending','authorized','paused'].includes(s.provider_status));
+    el('cancelSubscription').hidden=!canCancel;
+    if(flags.billingCheckoutEnabled===true){
+      el('billingNotice').innerHTML='<strong>Pagamento seguro:</strong> o checkout abre no Mercado Pago. O acesso só será liberado depois de confirmação do pagamento pelo servidor.';
+    }
     el('subscriptionPanel').hidden=false;
-    say('Consulta de leitura concluída. Nenhuma cobrança ou alteração de acesso foi realizada.');
+    say(returnVerificationFailed?
+      'O pagamento ainda não pôde ser confirmado. Use Verificar pagamento novamente.':
+      'Situação atualizada. Acesso à trilha é decidido pelo servidor.');
   }catch(e){
     say(e?.message||'Falha ao consultar a assinatura.');
   }finally{
@@ -132,6 +183,58 @@ async function refresh(){
   }
 }
 el('refreshStatus').addEventListener('click',refresh);
+el('acceptTerms').addEventListener('change',()=>{
+  el('startSubscription').disabled=!el('acceptTerms').checked || loading;
+});
+el('verifyPayment').addEventListener('click',async()=>{
+  const sb=window.ShamathaBackend?.getClient?.();
+  if(!sb || flags.billingReconcileEnabled!==true)return;
+  say('Verificando pagamento diretamente no Mercado Pago…');
+  el('verifyPayment').disabled=true;
+  try{
+    const {error}=await sb.functions.invoke('shamatha-reconcile-subscription',{body:{}});
+    if(error)throw error;
+    await refresh();
+  }catch(e){
+    say('Ainda não foi possível confirmar seu pagamento. Tente novamente mais tarde.');
+  }finally{el('verifyPayment').disabled=false;}
+});
+el('cancelSubscription').addEventListener('click',async()=>{
+  if(flags.billingCancelEnabled!==true ||
+     !window.confirm('Cancelar as próximas cobranças automáticas? O período já pago será preservado, salvo estorno.'))return;
+  el('cancelSubscription').disabled=true;
+  say('Solicitando cancelamento ao Mercado Pago…');
+  try{
+    const sb=window.ShamathaBackend.getClient();
+    const {data,error}=await sb.functions.invoke('shamatha-cancel-subscription',{body:{}});
+    if(error || data?.canceled!==true)throw error||new Error('Cancelamento não confirmado');
+    await refresh();
+    say('Renovação automática cancelada. O período já pago permanece sujeito à confirmação de pagamento.');
+  }catch(e){
+    say('Não foi possível confirmar o cancelamento. Contate o suporte antes da próxima cobrança.');
+  }finally{el('cancelSubscription').disabled=false;}
+});
+el('startSubscription').addEventListener('click',async()=>{
+  if(flags.billingCheckoutEnabled!==true || !el('acceptTerms').checked ||
+     !authenticatedProfile || authenticatedProfile.role!=='student')return;
+  el('startSubscription').disabled=true;
+  say('Preparando seu checkout seguro…');
+  try{
+    const sb=window.ShamathaBackend.getClient();
+    const {data,error}=await sb.functions.invoke('shamatha-create-subscription',{
+      body:{acceptTerms:true,termsVersion:TERMS_VERSION}
+    });
+    if(error || !data?.checkoutUrl)throw error||new Error(data?.error||'Checkout não disponível');
+    const target=new URL(data.checkoutUrl);
+    if(target.protocol!=='https:'||
+      !/(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(target.hostname))
+      throw new Error('Link de pagamento inválido');
+    location.assign(target.href);
+  }catch(e){
+    say('O pagamento ainda não está disponível. Nenhuma nova cobrança foi iniciada.');
+    el('startSubscription').disabled=false;
+  }
+});
 refresh();
 </script>
 </body>

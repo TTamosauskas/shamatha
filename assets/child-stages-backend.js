@@ -6,7 +6,8 @@
   const sb = base.getClient();
   const originalRequest = base.request.bind(base);
   const AUDIO_BUCKET = 'shamatha-audio';
-  const SIGNED_SECONDS = 6 * 60 * 60;
+  // Keep media links short-lived once billing gating is active.
+  const SIGNED_SECONDS = window.SHAMATHA_CONFIG?.billingUiEnabled===true ? 60 : 6 * 60 * 60;
   const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
   const DAY_MS = 86400000;
   const CURITIBA_TZ = 'America/Sao_Paulo';
