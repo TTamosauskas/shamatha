@@ -23,6 +23,17 @@
 .actions button:disabled{cursor:not-allowed;background:#f1f5f9;color:#64748b;border-color:#cbd5e1}
 #statusMessage{color:#475569;margin:16px 0;min-height:24px}
 #subscriptionPanel[hidden],#signInHint[hidden]{display:none}
+.checkout-modal[hidden],.checkout-progress-track[hidden],.checkout-modal-close[hidden]{display:none}
+.checkout-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.72)}
+.checkout-modal-panel{box-sizing:border-box;width:min(440px,100%);padding:32px 28px;border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.26);outline:none;text-align:center}
+.checkout-modal-panel h2{margin:0 0 12px;font-size:1.35rem;line-height:1.3;color:#0f172a}
+.checkout-modal-panel p{margin:0 0 20px;color:#475569;line-height:1.6}
+.checkout-progress-track{height:9px;width:100%;overflow:hidden;border-radius:999px;background:#e2e8f0}
+.checkout-progress-fill{width:38%;height:100%;border-radius:999px;background:#0284c7;animation:checkout-progress-slide 1.55s ease-in-out infinite}
+.checkout-modal-close{border:0;border-radius:10px;padding:11px 26px;font-weight:700;background:#0284c7;color:#fff;cursor:pointer}
+.checkout-modal-close:focus-visible{outline:3px solid #075985;outline-offset:3px}
+@keyframes checkout-progress-slide{from{transform:translateX(-110%)}to{transform:translateX(285%)}}
+@media(prefers-reduced-motion:reduce){.checkout-progress-fill{animation:none;transform:translateX(80%)}}
 </style>
 </head>
 <body>
@@ -81,6 +92,20 @@
     </div>
   </section>
 </main>
+<div id="checkoutModal" class="checkout-modal" role="dialog" aria-modal="true"
+     aria-labelledby="checkoutModalTitle" aria-describedby="checkoutModalMessage" hidden>
+  <div id="checkoutModalPanel" class="checkout-modal-panel" tabindex="-1">
+    <h2 id="checkoutModalTitle">Preparando seu checkout</h2>
+    <p id="checkoutModalMessage" role="status" aria-live="polite">
+      Aguarde enquanto verificamos sua assinatura e preparamos o acesso seguro ao Mercado Pago.
+    </p>
+    <div id="checkoutProgress" class="checkout-progress-track" role="progressbar"
+         aria-label="Preparando checkout" aria-valuetext="Processando, aguarde">
+      <div class="checkout-progress-fill"></div>
+    </div>
+    <button id="checkoutModalClose" class="checkout-modal-close" type="button" hidden>Fechar</button>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./assets/config.js?v=20261027-pending-route1"></script>
 <script src="./assets/supabase-backend.js?v=20261027-pending-route1"></script>
@@ -92,9 +117,44 @@ let loading=false;
 let authenticatedProfile=null;
 let currentView=null;
 let checkoutReturnHandled=false;
+let checkoutInFlight=false;
 const flags=window.SHAMATHA_CONFIG||{};
 const TERMS_VERSION='shamatha-r180-monthly-v1';
 function say(text){el('statusMessage').textContent=text;}
+function openCheckoutModal(){
+  el('checkoutModalTitle').textContent='Preparando seu checkout';
+  el('checkoutModalMessage').textContent=
+    'Aguarde enquanto verificamos sua assinatura e preparamos o acesso seguro ao Mercado Pago.';
+  el('checkoutProgress').hidden=false;
+  el('checkoutModalClose').hidden=true;
+  el('checkoutModal').hidden=false;
+  el('checkoutModal').setAttribute('aria-busy','true');
+  el('checkoutModalPanel').focus();
+}
+function showCheckoutModalError(message){
+  el('checkoutModalTitle').textContent='Não foi possível abrir o checkout';
+  el('checkoutModalMessage').textContent=message;
+  el('checkoutProgress').hidden=true;
+  el('checkoutModal').removeAttribute('aria-busy');
+  el('checkoutModalClose').hidden=false;
+  el('checkoutModalClose').focus();
+}
+function closeCheckoutModal(){
+  if(checkoutInFlight)return;
+  el('checkoutModal').hidden=true;
+  el('startSubscription').focus();
+}
+el('checkoutModalClose').addEventListener('click',closeCheckoutModal);
+el('checkoutModal').addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!checkoutInFlight){
+    event.preventDefault();
+    closeCheckoutModal();
+  }else if(event.key==='Tab'){
+    // Keep keyboard focus inside the modal during provider communication.
+    event.preventDefault();
+    (checkoutInFlight?el('checkoutModalPanel'):el('checkoutModalClose')).focus();
+  }
+});
 function administrativeLabel(value){
   return value==='approved'?'Aprovado':value==='suspended'?'Suspenso':'Pendente';
 }
@@ -221,10 +281,13 @@ el('cancelSubscription').addEventListener('click',async()=>{
   }finally{el('cancelSubscription').disabled=false;}
 });
 el('startSubscription').addEventListener('click',async()=>{
-  if(flags.billingCheckoutEnabled!==true || !el('acceptTerms').checked ||
-     !authenticatedProfile || authenticatedProfile.role!=='student')return;
+  if(checkoutInFlight || flags.billingCheckoutEnabled!==true ||
+     !el('acceptTerms').checked || !authenticatedProfile ||
+     authenticatedProfile.role!=='student' ||
+     authenticatedProfile.access_status==='suspended')return;
+  checkoutInFlight=true;
   el('startSubscription').disabled=true;
-  say('Preparando seu checkout seguro…');
+  openCheckoutModal();
   try{
     const sb=window.ShamathaBackend.getClient();
     const {data,error}=await sb.functions.invoke('shamatha-create-subscription',{
@@ -248,16 +311,20 @@ el('startSubscription').addEventListener('click',async()=>{
         code=String(body?.error||'');
       }
     }catch(_error){/* The provider response is not user-facing. */}
+    let message;
     if(code==='EXISTING_ATTEMPT_REQUIRES_REVIEW' ||
        code.startsWith('RECOVERY_')){
-      say('Sua tentativa anterior está em revisão. Não inicie outra assinatura. '+
-          'Entre em contato com o editor para confirmar o estado no Mercado Pago.');
+      message='Sua tentativa anterior está em revisão. Não inicie outra assinatura. '+
+          'Entre em contato com o editor para confirmar o estado no Mercado Pago.';
     }else{
-      say('O link de pagamento não pôde ser validado. Pode existir uma '+
+      message='O link de pagamento não pôde ser validado. Pode existir uma '+
           'assinatura pendente no Mercado Pago. Aguarde alguns instantes '+
-          'e use este botão para verificar a tentativa anterior, sem criar outra.');
+          'e use este botão para verificar a tentativa anterior, sem criar outra.';
       el('startSubscription').textContent='Verificar tentativa anterior';
     }
+    say(message);
+    checkoutInFlight=false;
+    showCheckoutModalError(message);
     el('startSubscription').disabled=false;
   }
 });
