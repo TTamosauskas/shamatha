@@ -5,10 +5,12 @@ import { verifyCreatedMonthlyPreapproval, verifiedMercadoPagoCheckoutUrl } from 
 import { verifyProviderBuyer } from "../_shared/mp-live-buyer-proof.mjs";
 
 /**
- * PREPARATORY CODE, DEPLOYED WITH PRELAUNCH_CHECKOUT_LOCKED=true.
- * No MP charge can occur through this endpoint until a separately reviewed
- * go-live commit removes the immutable code lock. Owner must approve go-live,
- * authenticated provider notifications, reconciliation and entitlement tests.
+ * STAGED PUBLIC LAUNCH CODE — do NOT deploy this function alone.
+ * Production checkout becomes capable of making real recurring subscriptions
+ * only AFTER independent production, final-approval, checkout and seller
+ * secrets are explicitly enabled; account identity, terms and price remain
+ * verified server-side. Activate periodic reconciliation and cancellation
+ * BEFORE allowing any buyer to start a recurring subscription.
  *
  * POST requires authenticated, email-confirmed Supabase STUDENT account.
  * Never accepts user_id, buyer email, merchant token or amount from browser.
@@ -23,9 +25,10 @@ const CHECKOUT_ENABLED = Deno.env.get("SHAMATHA_MP_PRODUCTION_CREATE_ENABLED") =
 const ORIGIN = "https://ttamosauskas.github.io";
 const CHECKOUT_BACK_URL = ORIGIN + "/shamatha/minha-assinatura.html?checkout=return";
 const AMOUNT_CENTS = 18000;
-// Compile-time launch lock: cannot be bypassed by any environment secret.
-// Change only in a separate, explicitly authorized go-live review.
-const PRELAUNCH_CHECKOUT_LOCKED = true;
+// Go-live code prepared by explicit owner request to serve ALL eligible
+// students. Backend remains OFF unless the three independent production
+// kill switches are deliberately enabled in Supabase Secrets.
+const PRELAUNCH_CHECKOUT_LOCKED = false;
 const TERMS_VERSION = "shamatha-r180-monthly-v1";
 // Never allow the previously tested fake seller to receive production checkout requests.
 const FAKE_SELLER_ID = "3778352536";
