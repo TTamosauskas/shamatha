@@ -42,6 +42,11 @@
     <div id="subscriptionPanel" hidden>
       <p><span id="billingStatus" class="status-indicator">Pendente</span></p>
       <p id="billingDescription"></p>
+      <div class="notice" id="pendingApprovalNotice" hidden>
+        <strong>Seu cadastro está pendente de aprovação.</strong>
+        Você pode consultar ou regularizar sua assinatura, mas o acesso às práticas
+        só será liberado após a aprovação do editor e a confirmação do pagamento.
+      </div>
       <div class="status-details">
         <dl>
           <div><dt>Conta</dt><dd id="accountEmail">—</dd></div>
@@ -77,8 +82,8 @@
   </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./assets/config.js?v=20261022-mvp1"></script>
-<script src="./assets/supabase-backend.js?v=20261022-mvp1"></script>
+<script src="./assets/config.js?v=20261027-pending-route1"></script>
+<script src="./assets/supabase-backend.js?v=20261027-pending-route1"></script>
 <script type="module">
 import { formatSubscriptionState } from './assets/subscription-status-view.mjs';
 
@@ -150,6 +155,7 @@ async function refresh(){
     });
     el('accountEmail').textContent=profile.data.email||'—';
     el('adminStatus').textContent=administrativeLabel(profile.data.access_status);
+    el('pendingApprovalNotice').hidden=profile.data.access_status!=='pending';
     el('billingStatus').textContent=view.label;
     el('billingDescription').textContent=view.message;
     el('paidThrough').textContent=humanDate(view.paidThrough);
