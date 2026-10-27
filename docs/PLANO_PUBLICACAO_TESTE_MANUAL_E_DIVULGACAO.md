@@ -70,3 +70,56 @@ Referências oficiais:
 | Divulgação + faturamento dos novos alunos | Não | Aprovação final separada após verificar o piloto |
 
 **Estado do projeto na redação:** o PR #67 permanece rascunho, ainda não incorporado à `main`. A migração financeira preparatória está presente, mas a exigência de pagamento continua desligada e nenhuma cobrança real foi iniciada.
+
+
+## Bloqueio técnico identificado antes do piloto financeiro privado
+
+**Validação de prontidão em 27/10/2026:** o PR #67 segue em *draft*
+e não foi mesclado em `main`. A trava `PRELAUNCH_CHECKOUT_LOCKED=true`
+continua no código, as quatro flags públicas de billing continuam desligadas,
+`private.billing_access_control.enforce_payment=false`, 2 perfis atuais
+isentos, 0 assinaturas de produção, 0 pagamentos, 0 tarefas periódicas.
+
+Há dois impedimentos concretos antes de o responsável poder pagar manualmente:
+
+1. **Criação deve ser exclusiva do piloto:** antes de retirar a trava
+   compilada, exigir no servidor um ID de usuário Supabase **exatamente igual**
+   ao perfil `student` piloto, derivado da sessão autenticada e de
+   configuração privada não controlada pelo navegador. Continuar negando
+   a criação para todos os demais, inclusive editores e contas isentas.
+   O fluxo pode ser habilitado por um caminho privado de UI para o piloto,
+   mantendo o checkout público inativo. Testar negativas para outro UUID,
+   sessões ausentes, perfis de editor, e-mail não verificado, usuário isento,
+   clique duplo e chamadas paralelas.
+
+2. **Bloqueio de acesso financeiro do piloto deve ser isolado:** quando
+   `enforce_payment=false`, a política RLS atual requer aprovação
+   administrativa, mas **não exige pagamento de nenhum aluno**. Logo
+   simplesmente aprovar a conta piloto antes de pagar não demonstrará
+   a eficácia do bloqueio por inadimplência. Projetar e testar um
+   controle financeiro temporário aplicado **somente ao UUID do aluno
+   piloto**, sem mudar o comportamento dos usuários existentes. Verificar
+   acesso negado após aprovação administrativa mas antes de pagamento,
+   acesso permitido após conciliação de uma fatura real integralmente
+   aprovada e período válido, acesso negado após expiração/estorno, e
+   preservação do mês quitado após cancelamento. Executar ensaios
+   transacionais sem persistência e revisar a alteração antes de deploy.
+
+O comprador piloto deve ser uma **conta de estudante nova**, e não
+qualquer um dos 2 usuários anteriores, pois são editores isentos.
+A conta do comprador e a conta vendedora devem ser identidades reais
+**distintas**. Não inserir e-mail privado, UUID, token ou dados do
+cartão no repositório, logs ou mensagens públicas.
+
+**Execução:** somente depois da publicação técnica e de autorização
+explícita do teste financeiro, o responsável entra com essa conta
+de estudante, revisa `R$ 180/mês` e os termos, aceita, paga com
+seu meio de pagamento real, aguarda prova de pagamento no backend,
+confirma o conteúdo, cancela a renovação no Shamatha e confere
+também o cancelamento no painel Mercado Pago. Guardar evidências
+resumidas e confirmar que nenhuma segunda cobrança está ativa.
+Não presumir que cancelar produz reembolso do primeiro pagamento.
+
+**Importante:** publicar uma versão técnica com os controles de checkout
+desligados e *depois* lançar um checkout-piloto isolado são operações
+separadas. Nenhuma delas autoriza faturamento aberto ao público.
