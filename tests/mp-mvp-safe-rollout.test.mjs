@@ -11,8 +11,8 @@ const core=read('supabase/functions/_shared/mp-live-reconciliation.ts');
 const periodic=read('supabase/functions/shamatha-billing-periodic/index.ts');
 const cancel=read('supabase/functions/shamatha-cancel-subscription/index.ts');
 const ui=read('minha-assinatura.html');
-test('cancellation has its own disabled-by-default flag, independent of checkout',()=>{
-  assert.match(cfg,/billingCancelEnabled: false/);
+test('cancellation remains available independently from checkout',()=>{
+  assert.match(cfg,/billingCancelEnabled: true/);
   assert.match(cancel,/SHAMATHA_MP_PRODUCTION_CANCEL_ENABLED/);
   assert.match(cancel,/shamatha:production:/);
   assert.match(cancel,/UNVERIFIED_SUBSCRIPTION_LINK/);
@@ -21,9 +21,9 @@ test('cancellation has its own disabled-by-default flag, independent of checkout
   assert.match(ui,/shamatha-cancel-subscription/);
   assert.match(ui,/Cancelar renovação automática/);
 });
-test('three public-facing feature switches default false',()=>{
-  for(const key of ['billingUiEnabled','billingCheckoutEnabled','billingReconcileEnabled'])
-    assert.match(cfg,new RegExp(key+': false'));
+test('launch branch exposes billing UI, reconciliation and cancellation to eligible users',()=>{
+  for(const key of ['billingUiEnabled','billingCheckoutEnabled','billingReconcileEnabled','billingCancelEnabled'])
+    assert.match(cfg,new RegExp(key+': true'));
 });
 test('database enforcement is OFF even after preparatory migration',()=>{
   assert.match(rls,/enforce_payment boolean not null default false/);
@@ -63,9 +63,19 @@ test('live checkout validates provider seller, owner, monthly value and exact pa
   assert.ok(checkout.indexOf('verifyCreatedMonthlyPreapproval({',checkout.indexOf('const remote = await response.json()'))<
     checkout.indexOf('billing_subscriptions").insert({'));
 });
-test('production checkout has immutable code lock until a separate final launch',()=>{
-  assert.match(checkout,/const PRELAUNCH_CHECKOUT_LOCKED = true/);
+test('prepared public checkout still enforces three private kill switches before side effects',()=>{
+  assert.match(checkout,/const PRELAUNCH_CHECKOUT_LOCKED = false/);
   assert.match(checkout,/if \(PRELAUNCH_CHECKOUT_LOCKED\) halt\("CHECKOUT_AWAITING_FINAL_LAUNCH", 503\)/);
+  const operational=checkout.indexOf('const operational = checkStudentCheckoutGate({');
+  const auth=checkout.indexOf('const { authUser, profile } = await requireStudent(req)');
+  const create=checkout.indexOf('await startCheckout(authUser.id, String(authUser.email).toLowerCase())');
+  assert.ok(operational>0&&auth>operational&&create>auth);
+  assert.match(checkout,/productionEnabled: PRODUCTION_ENABLED/);
+  assert.match(checkout,/launchApproved: LAUNCH_APPROVED/);
+  assert.match(checkout,/checkoutEnabled: CHECKOUT_ENABLED/);
+  assert.match(checkout,/if \(!operational.allowed\) halt\(operational.reason, 503\)/);
+  assert.match(checkout,/const eligibility = checkStudentCheckoutGate/);
+  assert.match(checkout,/if \(!eligibility.allowed\) halt\(eligibility.reason, 403\)/);
 });
 test('student checkout blocked without independently set provider secrets and flags',()=>{
   for(const key of [
