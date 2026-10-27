@@ -36,25 +36,35 @@ async function api(path, options = {}) {
   return window.ShamathaBackend.request(path, options);
 }
 
+// Pending administrative approval is always resolved on Minha assinatura.
+// It is a navigation decision only: payment and administrative access are
+// independently checked by the server/RLS; no redirect grants content access.
+function loginDestination(user) {
+  if (!user) return null;
+  if (user.accessStatus === 'pending') return './minha-assinatura.html?pending=1';
+  // Suspension requires a clear blocked-account message, not a checkout.
+  if (user.accessStatus === 'suspended') return null;
+  if (user.role === 'editor') return './editor.html';
+  if (user.billingEnforced && !user.accessGranted) {
+    return './minha-assinatura.html?due=1';
+  }
+  if (user.accessStatus === 'approved' || user.accessGranted) return './app.html';
+  return null;
+}
+
 function routeUser(user) {
-  if (user.role === 'editor') {
-    location.href = './editor.html';
-    return;
-  }
-  if (user.billingEnforced && user.accessStatus !== 'suspended' && !user.accessGranted) {
-    location.href='./minha-assinatura.html?due=1';
-    return;
-  }
-  if (user.accessStatus === 'approved' || user.accessGranted) {
-    location.href = './app.html';
-    return;
+  const destination = loginDestination(user);
+  if (destination) {
+    location.href = destination;
+    return true;
   }
   $('pendingActions').classList.remove('hidden');
   if (user.accessStatus === 'suspended') {
-    setStatus('Seu acesso está Suspenso. Seu histórico permanece preservado e voltará a ficar disponível quando um editor reativar sua conta.', 'bad');
+    setStatus('Seu acesso está suspenso. Seu histórico permanece preservado e voltará a ficar disponível quando um editor reativar sua conta.', 'bad');
   } else {
-    setStatus('Sua conta está Pendente. O conteúdo será liberado quando um editor aprovar seu acesso.', 'good');
+    setStatus('Sua conta ainda não está liberada. Consulte Minha assinatura e aguarde a aprovação do editor.', 'good');
   }
+  return false;
 }
 
 function showPasswordForm(email, mode = 'invite') {
@@ -189,8 +199,7 @@ $('logoutPending').addEventListener('click', async () => {
     const data = await api('/api/me');
     if (data.user) {
       const user = data.user;
-      navigating = user.role === 'editor' || user.accessStatus === 'approved' || Boolean(user.accessGranted);
-      routeUser(user);
+      navigating = routeUser(user);
       return;
     }
     if (new URLSearchParams(location.search).get('pending') === '1') {
