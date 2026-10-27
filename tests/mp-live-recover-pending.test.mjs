@@ -26,8 +26,8 @@ async function lookup({
 }={}){
   return recoverExistingPendingPreapproval({
     userId,intentId,payerEmail,sellerId,
-    fetchPage:fetchPage||async()=>page(rows),
-    fetchOne:fetchOne||async()=>remote,
+    fetchPage:fetchPage||(async()=>page(rows)),
+    fetchOne:fetchOne||(async()=>remote),
     ...options
   });
 }
