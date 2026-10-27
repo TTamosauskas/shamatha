@@ -170,7 +170,10 @@ test('login gets server-verified entitlement instead of relying on administrativ
 });
 test('new pending students reach subscription without bypassing administrative suspension',()=>{
   const login=read('assets/login.js');
-  assert.match(login,/user\.billingEnforced && user\.accessStatus !== 'suspended' && !user\.accessGranted/);
+  assert.match(login,/user\.accessStatus === 'pending'/);
+  assert.match(login,/minha-assinatura\.html\?pending=1/);
+  assert.match(login,/user\.accessStatus === 'suspended'/);
+  assert.match(login,/user\.billingEnforced && !user\.accessGranted/);
   assert.match(login,/minha-assinatura\.html\?due=1/);
 });
 test('both app loader and login direct nonpaying students to subscriptions',()=>{
