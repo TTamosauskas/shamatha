@@ -81,7 +81,7 @@ test('invalid payment URL is never handed to the browser',async()=>{
   await assert.rejects(()=>lookup({remote:{...valid(),init_point:null}}),
     /RECOVERY_INVALID_CHECKOUT_URL/);
 });
-test('provider's explicit wrong payer email always fails even after matching search',async()=>{
+test("provider explicit wrong payer email fails even after matching search",async()=>{
   await assert.rejects(()=>lookup({remote:{...valid(),payer_email:'other@example.com'}}),
     /MP_SUBSCRIPTION_PROOF_FAILED/);
   await assert.rejects(()=>lookup({rows:[{
