@@ -60,8 +60,11 @@ test('live checkout validates provider seller, owner, monthly value and exact pa
   assert.match(proof,/Number\(remote\.auto_recurring\?\.transaction_amount\)!==180/);
   assert.match(proof,/auto_recurring\?\.frequency_type!=='months'/);
   assert.match(proof,/searchParams\.get\('preapproval_id'\)/);
-  assert.ok(checkout.indexOf('verifyCreatedMonthlyPreapproval({',checkout.indexOf('const remote = await response.json()'))<
-    checkout.indexOf('billing_subscriptions").insert({'));
+  const createdResponseAt=checkout.indexOf('const remote = await response.json()');
+  assert.ok(createdResponseAt>0);
+  const verifiedAt=checkout.indexOf('verifyCreatedMonthlyPreapproval({',createdResponseAt);
+  const insertedAt=checkout.indexOf('billing_subscriptions").insert({',createdResponseAt);
+  assert.ok(verifiedAt>createdResponseAt && insertedAt>verifiedAt);
 });
 test('prepared public checkout still enforces three private kill switches before side effects',()=>{
   assert.match(checkout,/const PRELAUNCH_CHECKOUT_LOCKED = false/);

@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.10";
 import { checkStudentCheckoutGate, priorSubscriptionCheckoutGate } from "../_shared/student-checkout-gates.mjs";
 import { verifyCreatedMonthlyPreapproval, verifiedMercadoPagoCheckoutUrl } from "../_shared/mp-live-checkout-proof.mjs";
 import { verifyProviderBuyer } from "../_shared/mp-live-buyer-proof.mjs";
+import { recoverExistingPendingPreapproval } from "../_shared/mp-live-recover-pending.mjs";
 
 /**
  * STAGED PUBLIC LAUNCH CODE — do NOT deploy this function alone.
@@ -130,6 +131,67 @@ async function resumeExisting(intent: {
   return { state: "pending", checkoutUrl: intent.checkout_url, reused: true };
 }
 
+// Recover the *original* provider attempt, if one exists. This performs only
+// authenticated GET requests to Mercado Pago. It must never POST a second
+// subscription while the old creation outcome is ambiguous.
+async function recoverExistingReview(intent: {
+  id: string; state: string; mp_preapproval_id: string | null;
+  checkout_url: string | null; terms_version: string | null;
+  terms_accepted_at: string | null
+}, userId: string, userEmail: string) {
+  if(intent.state!=="needs_review"||
+     intent.terms_version!==TERMS_VERSION||!intent.terms_accepted_at)
+    halt("EXISTING_ATTEMPT_REQUIRES_REVIEW",409);
+
+  let recovered: {id:string;checkoutUrl:string;providerStatus:string};
+  try {
+    recovered=await recoverExistingPendingPreapproval({
+      userId,intentId:intent.id,payerEmail:userEmail,sellerId:PROD_SELLER_ID,
+      fetchPage:({payerEmail,offset,limit})=>mpGet(
+        "https://api.mercadopago.com/preapproval/search?payer_email="+
+        encodeURIComponent(payerEmail)+"&limit="+limit+"&offset="+offset),
+      fetchOne:id=>mpGet("https://api.mercadopago.com/preapproval/"+
+        encodeURIComponent(id))
+    });
+  }catch(error){
+    console.warn("checkout provider attempt needs manual review",
+      String((error as Error)?.message||"PROVIDER_REVIEW_PENDING").slice(0,80));
+    halt("EXISTING_ATTEMPT_REQUIRES_REVIEW",409);
+  }
+
+  const {data:subs,error:subsError}=await admin.from("billing_subscriptions")
+    .select("id,user_id,mp_preapproval_id,provider_status,paid_through")
+    .eq("user_id",userId).eq("environment","production").limit(101);
+  if(subsError)halt("SUBSCRIPTIONS_READ_FAILED",503);
+  if((subs||[]).some(x=>x.mp_preapproval_id!==recovered.id)){
+    // No unverified parallel recurring contract may be linked.
+    halt("RECOVERY_PRIOR_SUBSCRIPTION_REQUIRES_REVIEW",409);
+  }
+  if(!(subs||[]).length){
+    const {error:insertError}=await admin.from("billing_subscriptions").insert({
+      user_id:userId,environment:"production",
+      mp_preapproval_id:recovered.id,provider_status:"pending",
+      access_status:"pending",amount_cents:AMOUNT_CENTS,
+      currency:"BRL",paid_through:null
+    });
+    if(insertError){
+      // Includes a concurrent recovery or globally reused subscription ID.
+      // Never overwrite the owner or try a new provider creation.
+      halt("RECOVERY_LOCAL_SUBSCRIPTION_REQUIRES_REVIEW",409);
+    }
+  }
+  const {data:saved,error:saveError}=await admin.from("billing_checkout_intents")
+    .update({
+      state:"created",mp_preapproval_id:recovered.id,
+      checkout_url:recovered.checkoutUrl,seller_id:PROD_SELLER_ID,
+      last_error_code:null,updated_at:new Date().toISOString()
+    }).eq("id",intent.id).eq("user_id",userId)
+      .eq("state","needs_review").select("id").maybeSingle();
+  if(saveError||!saved)halt("RECOVERY_CHECKOUT_SAVE_REQUIRES_REVIEW",409);
+  return {state:"pending",checkoutUrl:recovered.checkoutUrl,
+          reused:true,recovered:true};
+}
+
 async function verifiedSeller() {
   if (PROD_SELLER_ID === FAKE_SELLER_ID) halt("TEST_SELLER_PROHIBITED", 403);
   const me = await mpGet("https://api.mercadolibre.com/users/me");
@@ -146,7 +208,11 @@ async function markForReview(intentId: string, reason: string) {
 
 async function startCheckout(userId: string, userEmail: string) {
   const before = await existingOpenIntent(userId);
-  if (before) return resumeExisting(before,userId,userEmail);
+  if (before) {
+    if(before.state==="needs_review")
+      return recoverExistingReview(before,userId,userEmail);
+    return resumeExisting(before,userId,userEmail);
+  }
 
   // One cancelled, fully expired subscription can be replaced. Never create
   // another live subscription or charge twice for overlapping paid coverage.

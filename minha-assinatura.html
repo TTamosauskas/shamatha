@@ -237,7 +237,27 @@ el('startSubscription').addEventListener('click',async()=>{
       throw new Error('Link de pagamento inválido');
     location.assign(target.href);
   }catch(e){
-    say('O pagamento ainda não está disponível. Nenhuma nova cobrança foi iniciada.');
+    // Do not falsely assert that a provider subscription was never created:
+    // a successful remote POST can fail *local* verification and be held for
+    // review without a checkout redirect or any confirmed payment.
+    let code='';
+    try {
+      const response=e?.context;
+      if(response&&typeof response.clone==='function'){
+        const body=await response.clone().json();
+        code=String(body?.error||'');
+      }
+    }catch(_error){/* The provider response is not user-facing. */}
+    if(code==='EXISTING_ATTEMPT_REQUIRES_REVIEW' ||
+       code.startsWith('RECOVERY_')){
+      say('Sua tentativa anterior está em revisão. Não inicie outra assinatura. '+
+          'Entre em contato com o editor para confirmar o estado no Mercado Pago.');
+    }else{
+      say('O link de pagamento não pôde ser validado. Pode existir uma '+
+          'assinatura pendente no Mercado Pago. Aguarde alguns instantes '+
+          'e use este botão para verificar a tentativa anterior, sem criar outra.');
+      el('startSubscription').textContent='Verificar tentativa anterior';
+    }
     el('startSubscription').disabled=false;
   }
 });
