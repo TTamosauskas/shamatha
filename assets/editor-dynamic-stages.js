@@ -7,12 +7,13 @@
   if (!root || !title || !button || !status) return;
 
   function stageCount() {
-    return root.querySelectorAll('[data-stage-details]').length;
+    return typeof editorData !== 'undefined' && Array.isArray(editorData?.stages)
+      ? editorData.stages.length : null;
   }
 
   function sync() {
     const count = stageCount();
-    title.textContent = `Conteúdo das ${count} ${count === 1 ? 'etapa' : 'etapas'}`;
+    if (count !== null) title.textContent = `Conteúdo das etapas (${count})`;
     button.disabled = false;
     button.title = 'Adicionar uma nova etapa principal ao final do caminho';
   }
@@ -23,6 +24,7 @@
   }
 
   button.addEventListener('click', async () => {
+    if (typeof confirmStageEditorDiscard === 'function' && !confirmStageEditorDiscard()) return;
     button.disabled = true;
     setStatus('Adicionando etapa…');
     try {
