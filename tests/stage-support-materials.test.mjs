@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const read=file=>readFileSync(new URL('../'+file,import.meta.url),'utf8');
 const migration=read('supabase/migrations/20261031180000_stage_support_materials.sql');
+const childUnlockPolicy=read('supabase/migrations/20261031183000_support_material_child_unlock.sql');
 const helper=read('assets/support-material-backend.js');
 const parent=read('assets/editor-v2.js');
 const child=read('assets/editor-child-stages.js');
@@ -112,6 +113,15 @@ test('private bucket, two metadata columns, and editor-only upload policy',()=>{
   assert.match(migration,/private\.has_content_access\(\)/);
   assert.match(migration,/s\.material_path=storage\.objects\.name/);
   assert.doesNotMatch(migration,/on storage\.objects for select to public/);
+});
+
+test('child lesson files also require the recorded release unlock',()=>{
+  assert.match(childUnlockPolicy,/s\.material_path=storage\.objects\.name/);
+  assert.match(childUnlockPolicy,/s\.is_active=true/);
+  assert.match(childUnlockPolicy,/s\.parent_stage_id is null/);
+  assert.match(childUnlockPolicy,/p\.data->'childUnlocks'/);
+  assert.match(childUnlockPolicy,/s\.stage_id::text/);
+  assert.match(childUnlockPolicy,/private\.has_content_access/);
 });
 
 test('uploading PDF associates file only with the selected principal stage',async()=>{
