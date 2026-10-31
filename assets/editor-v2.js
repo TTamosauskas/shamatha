@@ -201,9 +201,35 @@ function audioBlock(stage) {
     </div>`;
 }
 
+let selectedEditorStageId = null;
+
+function confirmStageEditorDiscard() {
+  if (document.querySelector('#stages .stage-form[data-saving="true"]')) return false;
+  const dirty = document.querySelector('#stages .stage-form[data-dirty="true"], #stages .child-editor-form[data-dirty="true"]');
+  return !dirty || window.confirm('Há alterações nesta etapa que ainda não foram salvas. Deseja descartá-las?');
+}
+
 function renderStages(openStage = null) {
-  $('stages').innerHTML = editorData.stages.map(stage => `
-    <details ${(openStage === stage.number || (!openStage && stage.number === 1)) ? 'open' : ''} data-stage-details="${stage.number}">
+  const stages = Array.isArray(editorData?.stages) ? editorData.stages : [];
+  const select = $('editorStageSelect');
+
+  // A stage's stable ID survives reordering; its displayed number can change.
+  if (openStage !== null) {
+    const requested = stages.find(stage => Number(stage.number) === Number(openStage));
+    selectedEditorStageId = requested?.stageId || null;
+  }
+  if (!stages.some(stage => stage.stageId === selectedEditorStageId)) {
+    selectedEditorStageId = null;
+  }
+
+  select.innerHTML = '<option value="">Selecione uma etapa...</option>' +
+    stages.map(stage => `<option value="${esc(stage.stageId)}">Etapa ${stage.number} — ${esc(stage.unitName || 'Sem título')}</option>`).join('');
+  select.disabled = stages.length === 0;
+  select.value = selectedEditorStageId || '';
+  const selected = stages.find(stage => stage.stageId === selectedEditorStageId);
+  $('stageEmptyState').hidden = Boolean(selected);
+  $('stages').innerHTML = (selected ? [selected] : []).map(stage => `
+    <details open data-stage-details="${stage.number}">
       <summary>Etapa ${stage.number} — ${esc(stage.unitName)}</summary>
       <form class="details-body stage-form" data-stage="${stage.number}">
         <div class="field"><label>Nome da unidade</label><input name="unitName" value="${esc(stage.unitName)}" maxlength="160" required></div>
@@ -254,9 +280,16 @@ function renderStages(openStage = null) {
        }
        delete payload.videoLimit;
       const status = form.querySelector('.stage-status');
+      if (form.dataset.saving === 'true') return;
+      form.dataset.saving = 'true';
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
       try {
         const data = await api(`/api/editor/stages/${number}`, { method:'PUT', body:JSON.stringify(payload) });
         editorData.stages[number - 1] = data.stage;
+        form.dataset.dirty = 'false';
+        const choice = [...$('editorStageSelect').options].find(option => option.value === data.stage.stageId);
+        if (choice) choice.textContent = `Etapa ${number} — ${data.stage.unitName || 'Sem título'}`;
         status.textContent = `Etapa ${number} salva.`;
         status.className = 'status good stage-status';
         const summary = form.closest('details').querySelector('summary');
@@ -266,6 +299,9 @@ function renderStages(openStage = null) {
       } catch (error) {
         status.textContent = error.message;
         status.className = 'status bad stage-status';
+      } finally {
+        form.dataset.saving = 'false';
+        if (submitButton) submitButton.disabled = false;
       }
     });
 
@@ -319,6 +355,26 @@ function renderStages(openStage = null) {
     });
   });
 }
+
+// Event delegation also tracks unsaved edits in nested (child) stages added
+// asynchronously by the child-stage editor.
+for (const eventName of ['input', 'change']) {
+  $('stages').addEventListener(eventName, event => {
+    const form = event.target.closest?.('.stage-form, .child-editor-form');
+    if (form) form.dataset.dirty = 'true';
+  });
+}
+
+$('editorStageSelect').addEventListener('change', event => {
+  const choice = event.currentTarget;
+  if (choice.value === (selectedEditorStageId || '')) return;
+  if (!confirmStageEditorDiscard()) {
+    choice.value = selectedEditorStageId || '';
+    return;
+  }
+  selectedEditorStageId = choice.value || null;
+  renderStages();
+});
 
 $('inviteForm').addEventListener('submit', async event => {
   event.preventDefault();

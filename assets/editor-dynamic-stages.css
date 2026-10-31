@@ -12,3 +12,10 @@
   .stage-add-row { align-items:stretch; flex-direction:column; }
   .stage-add-row .btn { width:100%; }
 }
+
+.stage-picker{max-width:600px;margin:10px 0 18px}
+.stage-picker select{display:block;width:100%;min-height:48px;padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font:inherit}
+.stage-picker select:focus-visible{outline:3px solid #7dd3fc;outline-offset:2px}
+.stage-picker .field-help{display:block;margin-top:8px}
+.stage-picker-empty{margin:0 0 18px;padding:15px 18px;border:1px dashed #cbd5e1;border-radius:12px}
+.stage-picker-empty[hidden]{display:none}
