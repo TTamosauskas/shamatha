@@ -21,7 +21,7 @@ on storage.objects for insert to authenticated
 with check (
   bucket_id='shamatha-support-materials'
   and (select private.is_editor())
-  and name ~ '^stage-[0-9a-f-]{36}/[0-9a-f-]{36}\\.(pdf|doc|docx|jpg|jpeg|png|gif|webp)$'
+  and name ~ '^stage-[0-9a-f-]{36}/[0-9a-f-]{36}\.(pdf|doc|docx|jpg|jpeg|png|gif|webp)$'
 );
 
 create policy "shamatha_materials_select_entitled"
