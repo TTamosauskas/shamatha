@@ -8,7 +8,7 @@ const editor=read('assets/editor-v2.js');
 const dynamic=read('assets/editor-dynamic-stages.js');
 const structure=read('assets/editor-stage-structure.js');
 
-const start=editor.indexOf('let selectedEditorStageId = null;');
+const start=editor.indexOf('function supportMaterialBlock(stage) {');
 const end=editor.indexOf("\n$('inviteForm').addEventListener",start);
 assert.ok(start>0&&end>start,'The editor selection controller must be available');
 const controller=editor.slice(start,end);
@@ -165,8 +165,10 @@ test('reordering and archive controls remain available for the one selected stag
 });
 
 test('editor loads fresh stage selector scripts and keeps child stages intact',()=>{
-  for(const file of ['editor-v2.js','editor-dynamic-stages.js','editor-stage-structure.js'])
-    assert.match(html,new RegExp('assets/'+file.replaceAll('.','\\.')+'\\?v=20261031-single-stage1'));
+  for(const file of ['editor-v2.js','editor-dynamic-stages.js','editor-stage-structure.js']) {
+    const version=file==='editor-v2.js'?'20261031-material1':'20261031-single-stage1';
+    assert.match(html,new RegExp('assets/'+file.replaceAll('.','\\\\.')+'\\\\?v='+version));
+  }
   assert.match(html,/assets\/editor-child-stages\.js/);
   assert.match(html,/id="archivedStagesSection"/);
   assert.match(editor,/choice\.textContent = `Etapa \$\{number\}/);
