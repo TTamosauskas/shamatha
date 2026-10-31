@@ -4,6 +4,20 @@
   const CONFIG = window.SHAMATHA_CONFIG || {};
   let client = null;
 
+  // The #deslogar fragment works from the course, editor, subscription and
+  // nested pages. Always route to the single login entry, where the current
+  // browser session is signed out before any automatic login redirect.
+  function redirectHashLogout() {
+    if (location.hash.toLowerCase() !== '#deslogar') return;
+    const root = new URL(String(CONFIG.baseUrl || './'), location.href);
+    if (root.origin !== location.origin) return;
+    const entry = new URL('index.html#deslogar', root);
+    if (location.pathname === entry.pathname || location.pathname === root.pathname) return;
+    location.replace(entry.href);
+  }
+  window.addEventListener('hashchange', redirectHashLogout);
+  redirectHashLogout();
+
   class BackendError extends Error {
     constructor(message, status = 400, cause = null) {
       super(message);
