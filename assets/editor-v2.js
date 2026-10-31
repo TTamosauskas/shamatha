@@ -204,9 +204,9 @@ function audioBlock(stage) {
 let selectedEditorStageId = null;
 
 function confirmStageEditorDiscard() {
-  const form = document.querySelector('#stages .stage-form');
-  return !form || form.dataset.dirty !== 'true' ||
-    window.confirm('Há alterações nesta etapa que ainda não foram salvas. Deseja descartá-las?');
+  if (document.querySelector('#stages .stage-form[data-saving="true"]')) return false;
+  const dirty = document.querySelector('#stages .stage-form[data-dirty="true"], #stages .child-editor-form[data-dirty="true"]');
+  return !dirty || window.confirm('Há alterações nesta etapa que ainda não foram salvas. Deseja descartá-las?');
 }
 
 function renderStages(openStage = null) {
@@ -257,8 +257,6 @@ function renderStages(openStage = null) {
 
   document.querySelectorAll('.stage-form').forEach(form => {
     const number = Number(form.dataset.stage);
-    form.addEventListener('input', () => { form.dataset.dirty = 'true'; });
-    form.addEventListener('change', () => { form.dataset.dirty = 'true'; });
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(form).entries());
@@ -282,6 +280,10 @@ function renderStages(openStage = null) {
        }
        delete payload.videoLimit;
       const status = form.querySelector('.stage-status');
+      if (form.dataset.saving === 'true') return;
+      form.dataset.saving = 'true';
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
       try {
         const data = await api(`/api/editor/stages/${number}`, { method:'PUT', body:JSON.stringify(payload) });
         editorData.stages[number - 1] = data.stage;
@@ -297,6 +299,9 @@ function renderStages(openStage = null) {
       } catch (error) {
         status.textContent = error.message;
         status.className = 'status bad stage-status';
+      } finally {
+        form.dataset.saving = 'false';
+        if (submitButton) submitButton.disabled = false;
       }
     });
 
@@ -348,6 +353,15 @@ function renderStages(openStage = null) {
         uploadButton.disabled = false;
       }
     });
+  });
+}
+
+// Event delegation also tracks unsaved edits in nested (child) stages added
+// asynchronously by the child-stage editor.
+for (const eventName of ['input', 'change']) {
+  $('stages').addEventListener(eventName, event => {
+    const form = event.target.closest?.('.stage-form, .child-editor-form');
+    if (form) form.dataset.dirty = 'true';
   });
 }
 
