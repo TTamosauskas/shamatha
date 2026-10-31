@@ -57,6 +57,7 @@
     const index = stages.findIndex(stage => stage.stageId === stageId);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= stages.length) return;
+    if (typeof confirmStageEditorDiscard === 'function' && !confirmStageEditorDiscard()) return;
     const ids = stages.map(stage => stage.stageId);
     [ids[index], ids[target]] = [ids[target], ids[index]];
     await persistOrder(ids, target + 1);
@@ -68,6 +69,7 @@
     const from = ids.indexOf(stageId);
     const target = ids.indexOf(targetStageId);
     if (from < 0 || target < 0 || from === target) return;
+    if (typeof confirmStageEditorDiscard === 'function' && !confirmStageEditorDiscard()) return;
     const [moved] = ids.splice(from, 1);
     ids.splice(target, 0, moved);
     await persistOrder(ids, target + 1);
@@ -76,6 +78,7 @@
   async function archiveStage(stage) {
     if (busy || !stage?.stageId) return;
     if (activeStages().length <= 1) return status('O caminho precisa manter pelo menos uma etapa ativa.', 'bad');
+    if (typeof confirmStageEditorDiscard === 'function' && !confirmStageEditorDiscard()) return;
     const label = stage.unitName || `Etapa ${stage.number}`;
     if (!window.confirm(`Remover “${label}” do caminho? O progresso histórico será preservado e a etapa poderá ser restaurada.`)) return;
 
@@ -97,6 +100,7 @@
 
   async function restoreStage(stage) {
     if (busy || !stage?.stageId) return;
+    if (typeof confirmStageEditorDiscard === 'function' && !confirmStageEditorDiscard()) return;
     busy = true;
     try {
       await api('/api/editor/stage-restore', {
@@ -161,7 +165,6 @@
         layout.innerHTML = `
           <span class="stage-summary-label">${esc(label)}</span>
           <div class="stage-structure-actions">
-            <span class="stage-drag-handle" title="Arraste para reordenar">↕ Arrastar</span>
             <button class="btn secondary small stage-order-btn move-stage-up" type="button" aria-label="Mover etapa para cima">↑</button>
             <button class="btn secondary small stage-order-btn move-stage-down" type="button" aria-label="Mover etapa para baixo">↓</button>
             <button class="btn danger small stage-remove-btn" type="button">Remover</button>
