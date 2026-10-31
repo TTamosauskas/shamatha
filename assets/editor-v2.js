@@ -201,9 +201,35 @@ function audioBlock(stage) {
     </div>`;
 }
 
+let selectedEditorStageId = null;
+
+function confirmStageEditorDiscard() {
+  const form = document.querySelector('#stages .stage-form');
+  return !form || form.dataset.dirty !== 'true' ||
+    window.confirm('Há alterações nesta etapa que ainda não foram salvas. Deseja descartá-las?');
+}
+
 function renderStages(openStage = null) {
-  $('stages').innerHTML = editorData.stages.map(stage => `
-    <details ${(openStage === stage.number || (!openStage && stage.number === 1)) ? 'open' : ''} data-stage-details="${stage.number}">
+  const stages = Array.isArray(editorData?.stages) ? editorData.stages : [];
+  const select = $('editorStageSelect');
+
+  // A stage's stable ID survives reordering; its displayed number can change.
+  if (openStage !== null) {
+    const requested = stages.find(stage => Number(stage.number) === Number(openStage));
+    selectedEditorStageId = requested?.stageId || null;
+  }
+  if (!stages.some(stage => stage.stageId === selectedEditorStageId)) {
+    selectedEditorStageId = null;
+  }
+
+  select.innerHTML = '<option value="">Selecione uma etapa...</option>' +
+    stages.map(stage => `<option value="${esc(stage.stageId)}">Etapa ${stage.number} — ${esc(stage.unitName || 'Sem título')}</option>`).join('');
+  select.disabled = stages.length === 0;
+  select.value = selectedEditorStageId || '';
+  const selected = stages.find(stage => stage.stageId === selectedEditorStageId);
+  $('stageEmptyState').hidden = Boolean(selected);
+  $('stages').innerHTML = (selected ? [selected] : []).map(stage => `
+    <details open data-stage-details="${stage.number}">
       <summary>Etapa ${stage.number} — ${esc(stage.unitName)}</summary>
       <form class="details-body stage-form" data-stage="${stage.number}">
         <div class="field"><label>Nome da unidade</label><input name="unitName" value="${esc(stage.unitName)}" maxlength="160" required></div>
@@ -231,6 +257,8 @@ function renderStages(openStage = null) {
 
   document.querySelectorAll('.stage-form').forEach(form => {
     const number = Number(form.dataset.stage);
+    form.addEventListener('input', () => { form.dataset.dirty = 'true'; });
+    form.addEventListener('change', () => { form.dataset.dirty = 'true'; });
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(form).entries());
@@ -257,6 +285,9 @@ function renderStages(openStage = null) {
       try {
         const data = await api(`/api/editor/stages/${number}`, { method:'PUT', body:JSON.stringify(payload) });
         editorData.stages[number - 1] = data.stage;
+        form.dataset.dirty = 'false';
+        const choice = [...$('editorStageSelect').options].find(option => option.value === data.stage.stageId);
+        if (choice) choice.textContent = `Etapa ${number} — ${data.stage.unitName || 'Sem título'}`;
         status.textContent = `Etapa ${number} salva.`;
         status.className = 'status good stage-status';
         const summary = form.closest('details').querySelector('summary');
@@ -319,6 +350,17 @@ function renderStages(openStage = null) {
     });
   });
 }
+
+$('editorStageSelect').addEventListener('change', event => {
+  const choice = event.currentTarget;
+  if (choice.value === (selectedEditorStageId || '')) return;
+  if (!confirmStageEditorDiscard()) {
+    choice.value = selectedEditorStageId || '';
+    return;
+  }
+  selectedEditorStageId = choice.value || null;
+  renderStages();
+});
 
 $('inviteForm').addEventListener('submit', async event => {
   event.preventDefault();
