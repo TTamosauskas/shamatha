@@ -46,7 +46,7 @@ function harness({editor=true}={}){
           (!stageFilter||row.stage_id===stageFilter)&&
           (!position||row.position===position)&&
           (!parentMode||(parentMode==='root'?!row.parent_stage_id:!!row.parent_stage_id))
-        );return Promise.resolve({data:row||null,error:null});},
+        );return Promise.resolve({data:row?{...row}:null,error:null});},
         update(body){
           calls.updates.push(body);
           return {
@@ -166,6 +166,7 @@ test('removing material clears stage metadata and deletes only old object',async
   const h=harness();
   await h.api('/api/editor/stages/1/material',{method:'POST',body:{file:pdf()}});
   assert.equal(h.calls.uploads.length,1);
+  assert.equal(h.calls.removes.length,0,'Newly uploaded object must not be removed');
   await h.api('/api/editor/stages/1/material',{method:'DELETE'});
   assert.equal(h.stages[0].material_path,'');
   assert.equal(h.stages[0].material_name,'');
