@@ -85,7 +85,9 @@
       minSessionSeconds: Number(row.min_session_seconds || 0),
       videoUrl: row.video_url || '',
       videoLimitSeconds: row.video_limit_seconds ?? null,
-      audioUrl: row.audio_url || ''
+      audioUrl: row.audio_url || '',
+      materialPath:row.material_path || '',
+      materialName:row.material_name || ''
     };
   }
 

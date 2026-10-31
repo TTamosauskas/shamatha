@@ -35,6 +35,8 @@
       objective:child.objective || '',
       videoUrl:child.videoUrl || '',
       videoLimitSeconds:child.videoLimitSeconds ?? null,
+      materialPath:child.materialPath || '',
+      materialName:child.materialName || '',
       audioUrl:child.audioUrl || '',
       childPractice:true,
       childStageId:child.stageId,

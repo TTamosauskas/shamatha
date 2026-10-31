@@ -201,6 +201,20 @@ function audioBlock(stage) {
     </div>`;
 }
 
+function supportMaterialBlock(stage) {
+  const hasMaterial=Boolean(stage.materialPath);
+  return `<div class="field support-material-field">
+    <label>Material de Apoio (opcional)</label>
+    <div class="audio-current">${hasMaterial ? '<strong>'+esc(stage.materialName || 'Material anexado')+'</strong>' : '<span class="muted">Nenhum material anexado.</span>'}</div>
+    <div class="audio-upload-row">
+      <input class="material-file" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/gif,image/webp">
+      <button class="btn secondary small material-upload" type="button">Enviar material</button>
+      <button class="btn danger small material-remove" type="button" ${hasMaterial ? '' : 'disabled'}>Remover material</button>
+    </div>
+    <small class="field-help">PDF, Word (DOC/DOCX) ou imagem (JPG, PNG, GIF, WEBP), até 20 MB. Disponível para download somente a alunos com acesso.</small>
+  </div>`;
+}
+
 let selectedEditorStageId = null;
 
 function confirmStageEditorDiscard() {
@@ -243,6 +257,7 @@ function renderStages(openStage = null) {
           <div class="field"><label>Tempo limite (opcional)</label><input name="videoLimit" type="text" inputmode="numeric" maxlength="8" pattern="[0-9]+:[0-5][0-9]" title="Use minutos:segundos, por exemplo 0:20" value="${stage.videoLimitSeconds ? Math.floor(stage.videoLimitSeconds / 60) + ':' + String(stage.videoLimitSeconds % 60).padStart(2,'0') : ''}" placeholder="0:20"></div>
         </div>
         ${audioBlock(stage)}
+        ${supportMaterialBlock(stage)}
         <div class="stage-save-row"><button class="btn primary" type="submit">Salvar etapa ${stage.number}</button></div>
         <div class="status hidden stage-status"></div>
       </form>
@@ -351,6 +366,50 @@ function renderStages(openStage = null) {
         status.className = 'status bad stage-status';
         removeButton.disabled = false;
         uploadButton.disabled = false;
+      }
+    });
+
+    const materialInput=form.querySelector('.material-file');
+    const materialUpload=form.querySelector('.material-upload');
+    const materialRemove=form.querySelector('.material-remove');
+    materialUpload.addEventListener('click',async()=>{
+      const file=materialInput.files?.[0];
+      if(!file){
+        status.textContent='Escolha um arquivo de material de apoio.';
+        status.className='status bad stage-status';
+        return;
+      }
+      materialUpload.disabled=true;materialRemove.disabled=true;
+      status.textContent='Enviando material de apoio…';
+      status.className='status stage-status';
+      try{
+        const data=await api(`/api/editor/stages/${number}/material`,{
+          method:'POST',body:{file}
+        });
+        editorData.stages[number-1]=data.stage;
+        renderStages(number);
+        const current=document.querySelector(`.stage-form[data-stage="${number}"] .stage-status`);
+        if(current){
+          current.textContent='Material de apoio enviado.';
+          current.className='status good stage-status';
+        }
+      }catch(error){
+        status.textContent=error?.message||'Falha ao enviar material.';
+        status.className='status bad stage-status';
+        materialUpload.disabled=false;materialRemove.disabled=false;
+      }
+    });
+    materialRemove.addEventListener('click',async()=>{
+      if(!window.confirm('Remover o material de apoio desta etapa?'))return;
+      materialUpload.disabled=true;materialRemove.disabled=true;
+      try{
+        const data=await api(`/api/editor/stages/${number}/material`,{method:'DELETE'});
+        editorData.stages[number-1]=data.stage;
+        renderStages(number);
+      }catch(error){
+        status.textContent=error?.message||'Falha ao remover material.';
+        status.className='status bad stage-status';
+        materialUpload.disabled=false;materialRemove.disabled=false;
       }
     });
   });

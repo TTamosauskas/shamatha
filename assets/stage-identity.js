@@ -272,7 +272,9 @@
       videoUrl: row.video_url || '',
       audioUrl: audioUrl || row.audio_url || '',
       audioPath: row.audio_path || '',
-      audioName: row.audio_name || ''
+      audioName: row.audio_name || '',
+      materialPath: row.material_path || '',
+      materialName: row.material_name || ''
     };
   }
 

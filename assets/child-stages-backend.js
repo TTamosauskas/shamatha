@@ -26,7 +26,7 @@
   }
 
   function stageRowsQuery() {
-    return sb.from('stages').select('number,stage_id,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,deadline_days,min_session_seconds,video_url,video_limit_seconds,audio_url,audio_path,audio_name,updated_at');
+    return sb.from('stages').select('number,stage_id,parent_stage_id,child_position,release_day,is_active,stage_name,unit_name,objective,deadline_days,min_session_seconds,video_url,video_limit_seconds,audio_url,audio_path,audio_name,material_path,material_name,updated_at');
   }
 
   async function childRows() {
@@ -147,6 +147,8 @@
         objective: row.objective || '',
         videoUrl: row.video_url || '',
         videoLimitSeconds: row.video_limit_seconds ?? null,
+        materialPath: row.material_path || '',
+        materialName: row.material_name || '',
         ownAudioPath: row.audio_path || '',
         ownAudioName: row.audio_name || '',
         ownAudioUrl,

@@ -116,6 +116,37 @@
     } finally { busy = false; }
   }
 
+  async function uploadMaterial(child,form,section) {
+    if(busy)return;
+    const file=form.querySelector('[name="childMaterialFile"]')?.files?.[0];
+    if(!file)return status(section,'Escolha um material de apoio.','bad');
+    busy=true;
+    try{
+      await api(`/api/editor/child-stages/${child.stageId}/material`,{
+        method:'POST',body:{file}
+      });
+      await refreshChildren();
+      const current=root.querySelector(`[data-child-id="${child.stageId}"]`)?.closest('.child-editor');
+      if(current)status(current,'Material de apoio enviado.');
+    }catch(error){
+      status(section,error?.message||'Falha ao enviar material de apoio.','bad');
+    }finally{busy=false;}
+  }
+
+  async function removeMaterial(child,section) {
+    if(busy||!child.materialPath)return;
+    if(!window.confirm('Remover o material de apoio desta etapa filha?'))return;
+    busy=true;
+    try{
+      await api(`/api/editor/child-stages/${child.stageId}/material`,{method:'DELETE'});
+      await refreshChildren();
+      const current=root.querySelector(`[data-child-id="${child.stageId}"]`)?.closest('.child-editor');
+      if(current)status(current,'Material de apoio removido.');
+    }catch(error){
+      status(section,error?.message||'Falha ao remover material de apoio.','bad');
+    }finally{busy=false;}
+  }
+
   function childMarkup(child) {
     const ownAudio = Boolean(child.ownAudioPath || child.ownAudioUrl);
     const audioNote = ownAudio
@@ -137,6 +168,16 @@
         </div>
         <div class="field"><label>Áudio próprio (opcional)</label><input name="childAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav,audio/webm,.mp3,.m4a,.aac,.ogg,.wav,.webm"></div>
         <div class="child-audio-row"><span class="child-audio-note">${audioNote}</span><button class="btn secondary small upload-child-audio" type="button">Enviar áudio</button>${ownAudio ? '<button class="btn secondary small remove-child-audio" type="button">Usar áudio da mãe</button>' : ''}</div>
+        <div class="field support-material-field">
+          <label>Material de Apoio (opcional)</label>
+          <div class="audio-current">${child.materialPath ? '<strong>'+esc(child.materialName || 'Material anexado')+'</strong>' : '<span class="muted">Nenhum material anexado.</span>'}</div>
+          <input name="childMaterialFile" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/gif,image/webp">
+          <div class="child-audio-row">
+            <button class="btn secondary small upload-child-material" type="button">Enviar material</button>
+            ${child.materialPath ? '<button class="btn danger small remove-child-material" type="button">Remover material</button>' : ''}
+          </div>
+          <small class="field-help">PDF, DOC, DOCX ou imagem (JPG, PNG, GIF, WEBP), até 20 MB.</small>
+        </div>
         <div class="child-editor-actions"><button class="btn primary small save-child-stage" type="submit">Salvar aula</button><button class="btn danger small archive-child-stage" type="button">Remover</button></div>
       </form>
     </details>`;
@@ -165,6 +206,8 @@
       item.querySelector('.archive-child-stage').addEventListener('click', () => archiveChild(child, section));
       item.querySelector('.upload-child-audio').addEventListener('click', () => uploadAudio(child, form, section));
       item.querySelector('.remove-child-audio')?.addEventListener('click', () => removeAudio(child, section));
+      item.querySelector('.upload-child-material').addEventListener('click', () => uploadMaterial(child, form, section));
+      item.querySelector('.remove-child-material')?.addEventListener('click', () => removeMaterial(child, section));
     });
   }
 
