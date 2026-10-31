@@ -69,7 +69,7 @@ test('pending destination presents administrative approval and billing status',(
 test('page references new versioned scripts so old cached login decisions cannot persist',()=>{
   for(const page of [index,billing,app]){
     assert.match(page,/assets\/config\.js\?v=20261027-pending-route1/);
-    assert.match(page,/assets\/supabase-backend\.js\?v=20261027-pending-route1/);
+    assert.match(page,/assets\/supabase-backend\.js\?v=20261031-hash-logout1/);
   }
-  assert.match(index,/assets\/login\.js\?v=20261027-pending-route1/);
+  assert.match(index,/assets\/login\.js\?v=20261031-hash-logout1/);
 });
