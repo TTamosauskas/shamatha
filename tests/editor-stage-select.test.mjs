@@ -167,7 +167,7 @@ test('reordering and archive controls remain available for the one selected stag
 test('editor loads fresh stage selector scripts and keeps child stages intact',()=>{
   for(const file of ['editor-v2.js','editor-dynamic-stages.js','editor-stage-structure.js']) {
     const version=file==='editor-v2.js'?'20261031-material1':'20261031-single-stage1';
-    assert.match(html,new RegExp('assets/'+file.replaceAll('.','\\\\.')+'\\\\?v='+version));
+    assert.ok(html.includes('assets/'+file+'?v='+version),file+' needs fresh cache version');
   }
   assert.match(html,/assets\/editor-child-stages\.js/);
   assert.match(html,/id="archivedStagesSection"/);
