@@ -5,6 +5,7 @@ const registerForm = $('registerForm');
 const invitePasswordForm = $('invitePasswordForm');
 let passwordFlow = 'invite';
 let recoveryActive = false;
+let hashLogoutInProgress = false;
 
 function hideAuthLoading() {
   const screen = $('authLoadingScreen');
@@ -101,14 +102,44 @@ function recoveryRedirectUrl() {
   return url.href;
 }
 
+// #deslogar intentionally logs out only this browser session. Supabase
+// removes its persisted credentials; do not route a previously signed-in user
+// while the operation is running. Keep the fragment if logout fails, so a
+// refresh can retry instead of silently treating the user as logged out.
+async function handleHashLogout() {
+  if (location.hash.toLowerCase() !== '#deslogar') return false;
+  if (hashLogoutInProgress) return true;
+  hashLogoutInProgress = true;
+  setStatus('Encerrando sua sessão…');
+  try {
+    const sb = window.ShamathaBackend.getClient();
+    const {error} = await sb.auth.signOut({scope:'local'});
+    if (error) throw error;
+    history.replaceState(null, '', location.pathname + location.search);
+    selectTab('login');
+    $('pendingActions').classList.add('hidden');
+    setStatus('Sessão encerrada. Você pode entrar novamente.', 'good');
+  } catch (_error) {
+    setStatus('Não foi possível encerrar a sessão. Verifique a conexão e tente novamente.', 'bad');
+  } finally {
+    hashLogoutInProgress = false;
+    hideAuthLoading();
+  }
+  return true;
+}
+window.addEventListener('hashchange', () => { void handleHashLogout(); });
+
 $('loginTab').addEventListener('click', () => selectTab('login'));
 $('registerTab').addEventListener('click', () => selectTab('register'));
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault();
+  if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
   try {
     const data = await api('/api/login', { method:'POST', body:JSON.stringify({ email:$('loginEmail').value, password:$('loginPassword').value }) });
+    if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
     if (await detectInvitation()) return;
+    if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
     routeUser(data.user);
   } catch (error) { setStatus(error.message, 'bad'); }
 });
@@ -137,6 +168,7 @@ $('forgotPassword').addEventListener('click', async () => {
 
 registerForm.addEventListener('submit', async event => {
   event.preventDefault();
+  if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
   try {
     const data = await api('/api/register', { method:'POST', body:JSON.stringify({ email:$('registerEmail').value, password:$('registerPassword').value }) });
     if (data.confirmationRequired) {
@@ -151,6 +183,7 @@ registerForm.addEventListener('submit', async event => {
 
 invitePasswordForm.addEventListener('submit', async event => {
   event.preventDefault();
+  if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
   const password = $('invitePassword').value;
   const confirm = $('invitePasswordConfirm').value;
   if (password.length < 8) return setStatus('A senha precisa ter pelo menos 8 caracteres.', 'bad');
@@ -166,6 +199,7 @@ invitePasswordForm.addEventListener('submit', async event => {
     if (error) throw error;
     const data = await api('/api/me');
     if (!data.user) throw new Error('Sessão encerrada. Entre novamente com a nova senha.');
+    if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
     routeUser(data.user);
   } catch (error) {
     setStatus(error.message || (passwordFlow === 'recovery' ? 'Falha ao redefinir a senha.' : 'Falha ao definir a senha.'), 'bad');
@@ -181,6 +215,7 @@ $('logoutPending').addEventListener('click', async () => {
 (async () => {
   let navigating = false;
   try {
+    if (await handleHashLogout()) return;
     if (!window.ShamathaBackend?.isConfigured()) {
       setStatus('Configuração pendente: preencha supabaseUrl e supabasePublishableKey em assets/config.js.', 'bad');
       loginForm.querySelector('button[type="submit"]').disabled = true;
@@ -195,8 +230,10 @@ $('logoutPending').addEventListener('click', async () => {
       }
     });
     if (await detectInvitation()) return;
+    if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
 
     const data = await api('/api/me');
+    if (hashLogoutInProgress || location.hash.toLowerCase() === '#deslogar') return;
     if (data.user) {
       const user = data.user;
       navigating = routeUser(user);
