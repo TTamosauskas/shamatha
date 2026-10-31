@@ -621,10 +621,39 @@
     return /^[A-Za-z0-9_-]{11}$/.test(String(value || '')) ? value : '';
   }
 
+  function supportMaterialMarkup(cfg) {
+    if (!cfg?.materialPath || !cfg?.materialName) return '';
+    return `<p class="support-material-row">Material de Apoio:
+      <a href="#" id="supportMaterialDownload" class="support-material-link" download="${escapeHtml(cfg.materialName)}">${escapeHtml(cfg.materialName)}</a>
+      <span id="supportMaterialStatus" class="muted" role="status"></span>
+    </p>`;
+  }
+
+  function bindSupportMaterial(cfg) {
+    const link=document.getElementById('supportMaterialDownload');
+    if(!link)return;
+    link.addEventListener('click',async event=>{
+      event.preventDefault();
+      if(link.dataset.loading==='1')return;
+      link.dataset.loading='1';
+      const note=document.getElementById('supportMaterialStatus');
+      if(note)note.textContent=' Preparando download…';
+      try{
+        if(!window.ShamathaSupportMaterials?.download)
+          throw new Error('Serviço de arquivos indisponível.');
+        await window.ShamathaSupportMaterials.download(cfg.materialPath,cfg.materialName);
+        if(note)note.textContent='';
+      }catch(error){
+        if(note)note.textContent=' Não foi possível baixar. Verifique seu acesso e tente novamente.';
+      }finally{link.dataset.loading='0';}
+    });
+  }
+
   function renderIntro() {
     sessionState='intro';
     const st=stageState(), cfg=config(); st.introStarted=true; saveProgress();
-    el.scroll.innerHTML=`<div class="view"><div class="unit-heading"><p class="eyebrow">Etapa ${selectedStage}</p><h1>${escapeHtml(cfg.unitName)}</h1><p>${escapeHtml(cfg.objective || '')}</p></div>${mediaMarkup(cfg.videoUrl, cfg.videoLimitSeconds)}<div class="action-stack"><button class="primary" id="goPractice">${st.introDone ? 'Ir para a prática' : 'Continuar para a prática'}</button><button class="ghost" id="backHomeIntro">Voltar ao caminho</button></div></div>`;
+    el.scroll.innerHTML=`<div class="view"><div class="unit-heading"><p class="eyebrow">Etapa ${selectedStage}</p><h1>${escapeHtml(cfg.unitName)}</h1><p>${escapeHtml(cfg.objective || '')}</p></div>${mediaMarkup(cfg.videoUrl, cfg.videoLimitSeconds)}${supportMaterialMarkup(cfg)}<div class="action-stack"><button class="primary" id="goPractice">${st.introDone ? 'Ir para a prática' : 'Continuar para a prática'}</button><button class="ghost" id="backHomeIntro">Voltar ao caminho</button></div></div>`;
+    bindSupportMaterial(cfg);
     window.ShamathaYouTubeLimit?.attach(el.scroll, cfg.videoLimitSeconds);
      document.getElementById('goPractice').addEventListener('click',()=>{st.introDone=true;saveProgress();renderPreparation();});
     document.getElementById('backHomeIntro').addEventListener('click',closeUnit);
