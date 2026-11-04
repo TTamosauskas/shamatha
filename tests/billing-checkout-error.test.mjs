@@ -65,6 +65,6 @@ test('checkout validates same authenticated Supabase user before invoking billab
 test('never relabel a subscription-creating POST as merely checking a prior attempt',()=>{
   assert.doesNotMatch(html,/textContent='Verificar tentativa anterior'/);
   assert.match(html,/el\('startSubscription'\)\.disabled=true/);
-  assert.match(html,/showCheckoutModalError\(message\)/);
+  assert.match(html,/showCheckoutModalError\(message,failure.kind==='review'\)/);
   assert.match(html,/Atualize a situação antes de tentar novamente/);
 });
