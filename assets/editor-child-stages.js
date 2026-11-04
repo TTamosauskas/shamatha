@@ -215,7 +215,12 @@
     if (typeof editorData === 'undefined' || !editorData?.stages) return;
     root.querySelectorAll('[data-stage-details]').forEach(details => {
       const position = Number(details.dataset.stageDetails);
-      const parent = editorData.stages[position - 1];
+      // Display numbers can have gaps after archival or reordering.
+      // Resolve the exact parent by its stable stage ID first, then number.
+      const parentId = details.dataset.stageId;
+      const parent = editorData.stages.find(stage =>
+        parentId ? stage.stageId === parentId : Number(stage.number) === position
+      );
       if (parent?.stageId) buildSection(details, parent);
     });
   }
