@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 const page=readFileSync(new URL('../minha-assinatura.html',import.meta.url),'utf8');
 const inline=page.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
 assert.ok(inline,'Subscription page has an inline controller');
-const stripped=inline.replace(/^import \{ formatSubscriptionState \} from '.+';\n/m,'');
+const stripped=inline.replace(/^import \{[^\n]+\} from '.+';\n/gm,'');
 
 function mockModal({inFlight=false}={}){
   const focus=[];
@@ -93,12 +93,13 @@ test('modal cannot be dismissed while checking or preparing the subscription',()
   assert.match(inline,/event\.key==='Tab'/);
 });
 
-test('checkout failure continues to show review guidance without claiming no provider contract',()=>{
-  assert.match(inline,/code==='EXISTING_ATTEMPT_REQUIRES_REVIEW'/);
-  assert.match(inline,/Não inicie outra assinatura/);
-  assert.match(inline,/Pode existir uma/);
+test('checkout failure stops progress and never offers a disguised new-subscription retry',()=>{
+  assert.match(inline,/const failure=await readCheckoutFailure\(e\)/);
   assert.match(inline,/checkoutInFlight=false;\s*showCheckoutModalError\(message\)/);
-  assert.match(inline,/el\('startSubscription'\)\.disabled=false/);
+  assert.match(inline,/el\('startSubscription'\)\.disabled=true/);
+  assert.match(inline,/textContent='Atualize a situação antes de tentar novamente'/);
+  assert.doesNotMatch(inline,/textContent='Verificar tentativa anterior'/);
+  assert.match(inline,/identity\.user\.id!==authenticatedProfile\.id/);
   assert.match(inline,/location\.assign\(target\.href\)/);
 });
 
