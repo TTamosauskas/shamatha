@@ -23,7 +23,7 @@
 .actions button:disabled{cursor:not-allowed;background:#f1f5f9;color:#64748b;border-color:#cbd5e1}
 #statusMessage{color:#475569;margin:16px 0;min-height:24px}
 #subscriptionPanel[hidden],#signInHint[hidden]{display:none}
-.checkout-modal[hidden],.checkout-progress-track[hidden],.checkout-modal-close[hidden]{display:none}
+.checkout-modal[hidden],.checkout-progress-track[hidden],.checkout-modal-close[hidden],.checkout-modal-resume[hidden]{display:none}
 .checkout-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.72)}
 .checkout-modal-panel{box-sizing:border-box;width:min(440px,100%);padding:32px 28px;border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.26);outline:none;text-align:center}
 .checkout-modal-panel h2{margin:0 0 12px;font-size:1.35rem;line-height:1.3;color:#0f172a}
@@ -31,7 +31,8 @@
 .checkout-progress-track{height:9px;width:100%;overflow:hidden;border-radius:999px;background:#e2e8f0}
 .checkout-progress-fill{width:38%;height:100%;border-radius:999px;background:#0284c7;animation:checkout-progress-slide 1.55s ease-in-out infinite}
 .checkout-modal-close{border:0;border-radius:10px;padding:11px 26px;font-weight:700;background:#0284c7;color:#fff;cursor:pointer}
-.checkout-modal-close:focus-visible{outline:3px solid #075985;outline-offset:3px}
+.checkout-modal-resume{border:0;border-radius:10px;padding:11px 17px;font-weight:700;background:#047857;color:#fff;cursor:pointer;margin:0 6px 8px 0}
+.checkout-modal-resume:focus-visible,.checkout-modal-close:focus-visible{outline:3px solid #075985;outline-offset:3px}
 @keyframes checkout-progress-slide{from{transform:translateX(-110%)}to{transform:translateX(285%)}}
 @media(prefers-reduced-motion:reduce){.checkout-progress-fill{animation:none;transform:translateX(80%)}}
 </style>
@@ -103,7 +104,10 @@
          aria-label="Preparando checkout" aria-valuetext="Processando, aguarde">
       <div class="checkout-progress-fill"></div>
     </div>
-    <button id="checkoutModalClose" class="checkout-modal-close" type="button" hidden>Fechar</button>
+    <div class="checkout-modal-actions">
+      <button id="checkoutModalResume" class="checkout-modal-resume" type="button" hidden>Retomar checkout existente (sem nova assinatura)</button>
+      <button id="checkoutModalClose" class="checkout-modal-close" type="button" hidden>Fechar</button>
+    </div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -128,16 +132,18 @@ function openCheckoutModal(){
     'Aguarde enquanto verificamos sua assinatura e preparamos o acesso seguro ao Mercado Pago.';
   el('checkoutProgress').hidden=false;
   el('checkoutModalClose').hidden=true;
+  el('checkoutModalResume').hidden=true;
   el('checkoutModal').hidden=false;
   el('checkoutModal').setAttribute('aria-busy','true');
   el('checkoutModalPanel').focus();
 }
-function showCheckoutModalError(message){
+function showCheckoutModalError(message,canResume=false){
   el('checkoutModalTitle').textContent='Não foi possível abrir o checkout';
   el('checkoutModalMessage').textContent=message;
   el('checkoutProgress').hidden=true;
   el('checkoutModal').removeAttribute('aria-busy');
   el('checkoutModalClose').hidden=false;
+  el('checkoutModalResume').hidden=!canResume;
   el('checkoutModalClose').focus();
 }
 function closeCheckoutModal(){
@@ -151,9 +157,17 @@ el('checkoutModal').addEventListener('keydown',event=>{
     event.preventDefault();
     closeCheckoutModal();
   }else if(event.key==='Tab'){
-    // Keep keyboard focus inside the modal during provider communication.
     event.preventDefault();
-    (checkoutInFlight?el('checkoutModalPanel'):el('checkoutModalClose')).focus();
+    if(checkoutInFlight) {
+      el('checkoutModalPanel').focus();
+    }else{
+      const controls=[el('checkoutModalResume'),el('checkoutModalClose')]
+        .filter(node=>!node.hidden);
+      const current=controls.indexOf(document.activeElement);
+      const direction=event.shiftKey?-1:1;
+      const next=controls[(current+direction+controls.length)%controls.length];
+      (next||el('checkoutModalClose')).focus();
+    }
   }
 });
 function administrativeLabel(value){
@@ -281,6 +295,48 @@ el('cancelSubscription').addEventListener('click',async()=>{
     say('Não foi possível confirmar o cancelamento. Contate o suporte antes da próxima cobrança.');
   }finally{el('cancelSubscription').disabled=false;}
 });
+function redirectToVerifiedCheckout(checkoutUrl){
+  const target=new URL(checkoutUrl);
+  if(target.protocol!=='https:'||
+    !/(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(target.hostname))
+    throw new Error('Link de pagamento inválido');
+  location.assign(target.href);
+}
+// This is the only recover action exposed after a provider verification
+// error. The backend's resumeOnly branch cannot create a new preapproval.
+el('checkoutModalResume').addEventListener('click',async()=>{
+  if(checkoutInFlight || !authenticatedProfile ||
+     authenticatedProfile.role!=='student')return;
+  checkoutInFlight=true;
+  openCheckoutModal();
+  el('checkoutModalTitle').textContent='Recuperando checkout existente';
+  try{
+    const sb=window.ShamathaBackend.getClient();
+    const {data:identity,error:identityError}=await sb.auth.getUser();
+    if(identityError || !identity?.user ||
+       identity.user.id!==authenticatedProfile.id)
+      throw Object.assign(new Error('ACCOUNT_SESSION_CHANGED'),
+        {code:'ACCOUNT_SESSION_CHANGED'});
+    const {data,error}=await sb.functions.invoke('shamatha-create-subscription',{
+      body:{resumeOnly:true}
+    });
+    if(error)throw error;
+    if(!data?.checkoutUrl)
+      throw Object.assign(new Error('EXISTING_SUBSCRIPTION_AWAITING_VERIFICATION'),
+        {code:'EXISTING_SUBSCRIPTION_AWAITING_VERIFICATION'});
+    redirectToVerifiedCheckout(data.checkoutUrl);
+  }catch(error){
+    const failure=await readCheckoutFailure(error);
+    const message=failure.kind==='review'
+      ? 'A tentativa anterior ainda está sendo validada pelo Mercado Pago. '+
+        'Não inicie outra assinatura. Você pode recuperar este link mais tarde.'
+      : failure.message;
+    checkoutInFlight=false;
+    say(message);
+    showCheckoutModalError(message,failure.kind==='review');
+  }
+});
+
 el('startSubscription').addEventListener('click',async()=>{
   if(checkoutInFlight || flags.billingCheckoutEnabled!==true ||
      !el('acceptTerms').checked || !authenticatedProfile ||
@@ -308,11 +364,7 @@ el('startSubscription').addEventListener('click',async()=>{
     if(!data?.checkoutUrl)
       throw Object.assign(new Error('EXISTING_SUBSCRIPTION_AWAITING_VERIFICATION'),
         {code:'EXISTING_SUBSCRIPTION_AWAITING_VERIFICATION'});
-    const target=new URL(data.checkoutUrl);
-    if(target.protocol!=='https:'||
-      !/(^|\.)mercadopago\.(com|com\.br|com\.ar|com\.mx|com\.uy)$/.test(target.hostname))
-      throw new Error('Link de pagamento inválido');
-    location.assign(target.href);
+    redirectToVerifiedCheckout(data.checkoutUrl);
   }catch(e){
     const failure=await readCheckoutFailure(e);
     const message=failure.message;
@@ -321,7 +373,7 @@ el('startSubscription').addEventListener('click',async()=>{
     // A fresh, explicit action requires another status refresh.
     say(message);
     checkoutInFlight=false;
-    showCheckoutModalError(message);
+    showCheckoutModalError(message,failure.kind==='review');
     el('startSubscription').disabled=true;
     el('startSubscription').textContent='Atualize a situação antes de tentar novamente';
   }

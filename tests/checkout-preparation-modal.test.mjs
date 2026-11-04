@@ -11,7 +11,7 @@ function mockModal({inFlight=false}={}){
   const focus=[];
   const nodes=Object.fromEntries([
     'checkoutModalTitle','checkoutModalMessage','checkoutProgress',
-    'checkoutModalClose','checkoutModal','checkoutModalPanel','startSubscription'
+    'checkoutModalClose','checkoutModalResume','checkoutModal','checkoutModalPanel','startSubscription'
   ].map(id=>[id,{
     id,hidden:id==='checkoutModal',textContent:'',
     focus(){focus.push(id)},
@@ -39,6 +39,7 @@ test('subscription checkout modal is a labelled and described dialog',()=>{
   assert.match(page,/aria-describedby="checkoutModalMessage"/);
   assert.match(page,/id="checkoutModalPanel"[^>]*tabindex="-1"/);
   assert.match(page,/id="checkoutModalClose"/);
+  assert.match(page,/id="checkoutModalResume"/);
 });
 
 test('progress bar is visibly indeterminate and honors reduced motion',()=>{
@@ -95,7 +96,7 @@ test('modal cannot be dismissed while checking or preparing the subscription',()
 
 test('checkout failure stops progress and never offers a disguised new-subscription retry',()=>{
   assert.match(inline,/const failure=await readCheckoutFailure\(e\)/);
-  assert.match(inline,/checkoutInFlight=false;\s*showCheckoutModalError\(message\)/);
+  assert.match(inline,/checkoutInFlight=false;\s*showCheckoutModalError\(message,failure.kind==='review'\)/);
   assert.match(inline,/el\('startSubscription'\)\.disabled=true/);
   assert.match(inline,/textContent='Atualize a situação antes de tentar novamente'/);
   assert.doesNotMatch(inline,/textContent='Verificar tentativa anterior'/);

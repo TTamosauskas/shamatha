@@ -360,9 +360,28 @@ Deno.serve(async (req: Request) => {
     });
     if (!eligibility.allowed) halt(eligibility.reason, 403);
 
-    // The ONLY accepted user-controlled input is an explicit acceptance of
-    // this exact contract version. Never read identity, price or seller from it.
+    // All requests are authenticated and eligibility-gated above.
+    // A resumeOnly request can NEVER create a new provider subscription.
+    // It may only READ the existing Mercado Pago preapproval and reconcile
+    // locally the original checkout attempt previously marked needs_review.
+    // Do NOT call startCheckout() from this branch.
     const consent=await req.json().catch(()=>null);
+    if(consent?.resumeOnly===true){
+      const prior=await existingOpenIntent(authUser.id);
+      if(!prior)halt("NO_EXISTING_ATTEMPT",404);
+      if(!["created","needs_review"].includes(prior.state))
+        halt("EXISTING_ATTEMPT_REQUIRES_REVIEW",409);
+      await verifiedSeller();
+      const checkout=prior.state==="needs_review"
+        ? await recoverExistingReview(prior,authUser.id,String(authUser.email).toLowerCase())
+        : await resumeExisting(prior,authUser.id,String(authUser.email).toLowerCase());
+      return json({
+        productionBillingEnabled:true,amountCents:AMOUNT_CENTS,currency:"BRL",
+        ...checkout,reused:true,grantsStudentAccess:false
+      });
+    }
+    // For a NEW contract accept only the versioned explicit user consent;
+    // identity, price, beneficiary and seller are server-owned.
     if(consent?.acceptTerms!==true || consent?.termsVersion!==TERMS_VERSION)
       halt("SUBSCRIPTION_TERMS_ACCEPTANCE_REQUIRED", 400);
     await verifiedSeller();
