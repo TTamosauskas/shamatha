@@ -150,7 +150,7 @@ test('my subscription page gates checkout behind user acceptance',()=>{
 test('HTML inline module parses after removing module import',()=>{
   const script=ui.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script);
-  const code=script.replace(/^import \{ formatSubscriptionState \} from '.+';\n/m,'');
+  const code=script.replace(/^import \{[^\n]+\} from '.+';\n/gm,'');
   assert.doesNotThrow(()=>new Function(code));
 });
 
