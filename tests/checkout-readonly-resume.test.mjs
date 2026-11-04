@@ -37,7 +37,7 @@ test('UI recovery button is explicit and is invisible during creation',()=>{
   assert.match(inline,/el\('checkoutModalResume'\)\.hidden=true/);
   assert.match(inline,/el\('checkoutModalResume'\)\.hidden=!canResume/);
   assert.match(inline,/showCheckoutModalError\(message,failure.kind==='review'\)/);
-  assert.match(inline,/Retomar checkout existente \(sem nova assinatura\)/);
+  assert.match(html,/Retomar checkout existente \(sem nova assinatura\)/);
 });
 
 test('UI recovery explicitly calls resumeOnly, not creation body',()=>{
